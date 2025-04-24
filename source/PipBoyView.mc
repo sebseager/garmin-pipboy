@@ -23,12 +23,13 @@ class PipBoyView extends WatchUi.WatchFace {
     const TIME_FONT = WatchUi.loadResource(Rez.Fonts.monofonto72);
     const DAY_FONT = WatchUi.loadResource(Rez.Fonts.monofonto16);
     const DATE_FONT = WatchUi.loadResource(Rez.Fonts.monofonto20);
+    const ICON_FONT = WatchUi.loadResource(Rez.Fonts.icons24);
 
     // Measurements
     const CRT_FREQ = 3;
-    const TEMP_YOFF = 40;
+    const TEMP_YOFF = 46;
     const TEMP_BARLENGTH = 100;
-    const TEMP_BARWIDTH = 2;
+    const BAR_WIDTH = 2;
     const TIME_XOFF = 50;
     const TIME_YPAD = -9; // Controls vertical spacing of hours and minutes
     const DATE_XPAD = 6; // Push date away from time
@@ -36,6 +37,7 @@ class PipBoyView extends WatchUi.WatchFace {
     const STATUS_YOFF = 20;
     const STATUS_BOXSIZE = 15;
     const STATUS_BOXMRGN = 5;
+    const TAB_YOFF = 52;
 
     // =================================================================================
     // Variables
@@ -45,10 +47,14 @@ class PipBoyView extends WatchUi.WatchFace {
     var screenHalfWidth;
     var screenHeight;
     var screenHalfHeight;
-    var currentTemperature = MAX_TEMP;
+    var currentTemp = MAX_TEMP;
     var hasMessages = false;
     var hasAlarms = false;
     var hasConnection = false;
+
+    // Time and date
+    var currentTime;
+    var currentDate;
 
     // Vitals
     var activeMinutes = 0;
@@ -85,17 +91,25 @@ class PipBoyView extends WatchUi.WatchFace {
 
     // Update the view
     function onUpdate(dc as Dc) as Void {
+        // Grab per-update data
+        currentTime = System.getClockTime();
+        currentDate = Time.Gregorian.info(Time.now(), Time.FORMAT_MEDIUM);
+
+        // Start redraw
         dc.clear();
         drawCRT(dc, CRT_FREQ);
 
-        currentTemperature = 45; // TODO: DEBUG
+        currentTemp = 45; // TODO: DEBUG
 
-        drawTemperature(dc);
+        drawTemp(dc);
 
         // TODO: Draw the sun/moon/cloud above temp
 
         drawTime(dc);
-        drawStatus(dc);
+        // drawStatus(dc);
+
+        drawTabs(dc, "HRS", "WTR", "MAP", 8);
+
         drawVitals(dc);
 
         // Set a black background
@@ -139,7 +153,7 @@ class PipBoyView extends WatchUi.WatchFace {
             var conditions = Weather.getCurrentConditions();
             if (conditions != null) {
                 if (conditions.temperature != null) {
-                    currentTemperature = conditions.temperature;
+                    currentTemp = conditions.temperature;
                 }
             }
         }
@@ -178,10 +192,10 @@ class PipBoyView extends WatchUi.WatchFace {
     }
 
     // Draw the temperature in a bar across the top
-    function drawTemperature(dc as Dc) as Void {
-        if (currentTemperature < MAX_TEMP) {
+    function drawTemp(dc as Dc) as Void {
+        if (currentTemp < MAX_TEMP) {
             // Draw temperature text
-            var str = Lang.format("$1$°", [currentTemperature.toNumber()]);
+            var str = Lang.format("$1$°", [currentTemp.toNumber()]);
             var strHeight = dc.getFontHeight(TEMP_FONT);
             var strWidth = dc.getTextWidthInPixels(str, TEMP_FONT);
             var strHalfWidth = strWidth / 2;
@@ -200,14 +214,14 @@ class PipBoyView extends WatchUi.WatchFace {
             dc.fillRectangle(
                 screenHalfWidth - strHalfWidth - barLength - 4,
                 TEMP_YOFF,
-                barLength,
-                TEMP_BARWIDTH
+                barLength - 4,
+                BAR_WIDTH
             );
             dc.fillRectangle(
                 screenHalfWidth + strHalfWidth + 2,
                 TEMP_YOFF,
-                barLength,
-                TEMP_BARWIDTH
+                barLength - 2,
+                BAR_WIDTH
             );
         } else {
             // Draw a full bar if no temperature is available
@@ -216,22 +230,21 @@ class PipBoyView extends WatchUi.WatchFace {
                 (screenWidth - TEMP_BARLENGTH) / 2, 
                 TEMP_YOFF, 
                 TEMP_BARLENGTH, 
-                TEMP_BARWIDTH
+                BAR_WIDTH
             );
         }
     }
 
     // Draw the time and date
     function drawTime(dc as Dc) as Void {
-        // Get the current time
-        var time = System.getClockTime();
+        // Format time
+        var hour = currentTime.hour;
+        var min = currentTime.min;
         if (!System.getDeviceSettings().is24Hour) {
-            if (time.hour > 12) {
-                time.hour = time.hour - 12;
-            }
+            hour = hour > 12 ? hour - 12 : hour;
         }
-        var hourStr = Lang.format("$1$", [time.hour.format("%02d")]);
-        var minStr = Lang.format("$1$", [time.min.format("%02d")]);
+        var hourStr = Lang.format("$1$", [hour.format("%02d")]);
+        var minStr = Lang.format("$1$", [min.format("%02d")]);
         var strHeight = dc.getFontHeight(TIME_FONT);
 
         // Draw hours and minutes
@@ -251,12 +264,11 @@ class PipBoyView extends WatchUi.WatchFace {
             Graphics.TEXT_JUSTIFY_LEFT
         );
 
-        // Get the current date
-        var today = Time.Gregorian.info(Time.now(), Time.FORMAT_MEDIUM);
-        var dateStr = Lang.format("$1$", [today.day.format("%02d")]);
-        var secStr = Lang.format(":$1$", [time.sec.format("%02d")]);
-        var dayStr = Lang.format("$1$", [today.day_of_week.toUpper()]);
-        var monthStr = Lang.format("$1$", [today.month.toUpper()]);
+        // Format date
+        var dateStr = Lang.format("$1$", [currentDate.day.format("%02d")]);
+        var secStr = Lang.format(":$1$", [currentTime.sec.format("%02d")]);
+        var dayStr = Lang.format("$1$", [currentDate.day_of_week.toUpper()]);
+        var monthStr = Lang.format("$1$", [currentDate.month.toUpper()]);
         var secDims = dc.getTextDimensions(secStr, DAY_FONT);
         var dayDims = dc.getTextDimensions(dayStr, DAY_FONT);
         var monthDims = dc.getTextDimensions(monthStr, DAY_FONT);
@@ -298,7 +310,7 @@ class PipBoyView extends WatchUi.WatchFace {
         );
 
         // Draw seconds above the day
-        dc.setColor(time.sec % 2 ? FG_COLOR : FG_COLOR, NO_COLOR);
+        dc.setColor(currentTime.sec % 2 ? FG_COLOR : FG_COLOR, NO_COLOR);
         dc.drawText(
             TIME_XOFF - DATE_XPAD,
             screenHalfHeight - DATE_YPAD - dayDims[1] - secDims[1] - 14,
@@ -453,6 +465,76 @@ class PipBoyView extends WatchUi.WatchFace {
             dc.setColor(FG_COLOR, NO_COLOR);
             dc.drawText(x, y, font, text, just);
         }
+    }
+
+    // Draw a tab bar with three labels where the line deviates under the middle label only
+    function drawTabs(dc as Dc, title1 as String, title2 as String, title3 as String, hpad as Number) as Void {
+        // Tab bar position
+        var ty = screenHeight - TAB_YOFF;
+        var lw = BAR_WIDTH;
+        
+        // Calculate tab positions (biased towards center a bit)
+        var tx1 = screenWidth / 4;
+        var tx2 = screenWidth / 2;
+        var tx3 = (screenWidth * 3) / 4;
+
+        // Get text dimensions
+        var dims1 = dc.getTextDimensions(title1, DAY_FONT);
+        var dims2 = dc.getTextDimensions(title2, DAY_FONT);
+        var dims3 = dc.getTextDimensions(title3, DAY_FONT);
+        
+        var w1 = dims1[0];
+        var w2 = dims2[0];
+        var h2 = dims2[1];
+        var w3 = dims3[0];
+        
+        // Set drawing color
+        dc.setColor(FG_COLOR, FG_COLOR);
+        
+        // Draw the tab line in segments using fillRectangle for thickness
+        // Segment 1: left edge to first tab
+        dc.fillRectangle(0, ty - lw/2, tx1 - w1/2 - hpad, lw);
+        
+        // Segment 2: first tab to second tab (skip under first tab)
+        dc.fillRectangle(tx1 + w1/2 + hpad, ty - lw/2, tx2 - w2/2 - hpad - (tx1 + w1/2 + hpad), lw);
+        
+        // Segment 3: under second tab (middle tab)
+        dc.fillRectangle(tx2 - w2/2 - hpad - lw/2, ty - lw/2, lw, h2/2 + lw/2);
+        // Bottom horizontal - extended by lw/2 on each side
+        dc.fillRectangle(tx2 - w2/2 - hpad - lw/2, ty + h2/2 - lw/2, w2 + 2*hpad + lw, lw);
+        dc.fillRectangle(tx2 + w2/2 + hpad - lw/2, ty - lw/2, lw, h2/2 + lw/2);
+        
+        // Segment 4: second tab to third tab
+        dc.fillRectangle(tx2 + w2/2 + hpad, ty - lw/2, tx3 - w3/2 - hpad - (tx2 + w2/2 + hpad), lw);
+        
+        // Segment 5: third tab to right edge (skip under third tab)
+        dc.fillRectangle(tx3 + w3/2 + hpad, ty - lw/2, screenWidth - (tx3 + w3/2 + hpad), lw);
+        
+        // Draw the text for each tab
+        dc.setColor(FG_COLOR, NO_COLOR);
+        dc.drawText(
+            tx1,
+            ty - 2,
+            DAY_FONT,
+            title1,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+        );
+        
+        dc.drawText(
+            tx2,
+            ty - 2,
+            DAY_FONT,
+            title2,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+        );
+        
+        dc.drawText(
+            tx3,
+            ty - 2,
+            DAY_FONT,
+            title3,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+        );
     }
 
 }
