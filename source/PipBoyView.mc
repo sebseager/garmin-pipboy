@@ -4,6 +4,7 @@ import Toybox.Lang;
 import Toybox.System;
 import Toybox.WatchUi;
 import Toybox.Weather;
+import Toybox.Position;
 
 class PipBoyView extends WatchUi.WatchFace {
 
@@ -15,6 +16,7 @@ class PipBoyView extends WatchUi.WatchFace {
     const NO_COLOR = Graphics.COLOR_TRANSPARENT;
     const BG_COLOR = Graphics.COLOR_BLACK;
     const CRT_COLOR = 0x003355;
+    const INACTIVE_COLOR = 0x003333;
     const FG_COLOR = 0x00FFFF;
     const BAD_NUM = 999999;
 
@@ -35,9 +37,8 @@ class PipBoyView extends WatchUi.WatchFace {
     const DATE_XPAD = 6; // Push date away from time
     const DATE_YPAD = 2; // Push date components away from center line
     const STATUS_YOFF = 20;
-    const STATUS_BOXSIZE = 15;
-    const STATUS_BOXMRGN = 5;
-    const TABS_YOFF = 52;
+    const TABS_YOFF = 60;
+    const POS_YOFF = 32;
 
     // =================================================================================
     // Variables
@@ -53,6 +54,10 @@ class PipBoyView extends WatchUi.WatchFace {
     var currentTemp = BAD_NUM;
     var currentPrecip = BAD_NUM;
     var currentHumidity = BAD_NUM;
+
+    // GPS
+    var currentLat = "---";
+    var currentLon = "---";
 
     // Settings
     var currentSettings;
@@ -78,6 +83,7 @@ class PipBoyView extends WatchUi.WatchFace {
     // Other
     var allVitalsValid = true;
     var aboutToSleep = false;
+    var selectedTab = 1;
 
     // =================================================================================
     // Delegate Functions
@@ -95,6 +101,7 @@ class PipBoyView extends WatchUi.WatchFace {
         getCurrentWeather();
         getCurrentSettings();
         getCurrentActivityInfo();
+        getCurrentPosition();
     }
 
     // Called when this View is brought to the foreground. Restore
@@ -114,7 +121,7 @@ class PipBoyView extends WatchUi.WatchFace {
         drawCRT(dc, CRT_FREQ);
         drawCelestialIcon(dc);
         drawTime(dc);
-        drawBottomTabs(dc, "HRS", "WTR", "MAP", 8);
+        drawBottomTabs(dc, "HRS", "MAP", "WTR", 8);
         drawStatus(dc);
 
         // Only draw top bar if we have weather data
@@ -123,6 +130,15 @@ class PipBoyView extends WatchUi.WatchFace {
             var precipStr = Lang.format("$1$%", [currentPrecip.toNumber()]);
             var humidityStr = Lang.format("$1$%", [currentHumidity.toNumber()]);
             drawTopBar(dc, precipStr, tempStr, humidityStr, 4);
+        }
+
+        // Draw tab contents
+        if (selectedTab == 0) {
+            // TODO
+        } else if (selectedTab == 1) {
+            drawLatLong(dc);
+        } else if (selectedTab == 2) {
+            // TODO
         }
 
         if (!aboutToSleep && allVitalsValid) {
@@ -155,6 +171,7 @@ class PipBoyView extends WatchUi.WatchFace {
         getCurrentWeather();
         getCurrentSettings();
         getCurrentActivityInfo();
+        getCurrentPosition();
     }
 
     // Terminate any active timers and prepare for slow updates.
@@ -165,7 +182,37 @@ class PipBoyView extends WatchUi.WatchFace {
     // =================================================================================
     // Data Helpers
     // =================================================================================
-    
+
+    function getCurrentPosition() as Void {
+        if (Toybox has :Position) {
+            // Try to get position info
+            if (Position has :getInfo) {
+                var posInfo = Position.getInfo();
+                if (posInfo != null && posInfo.position != null) {
+                    var location = posInfo.position;
+                    // Format latitude and longitude
+                    if (location has :toDegrees) {
+                        var coords = location.toDegrees();
+                        
+                        // Format latitude (XX°YY'N/S)
+                        var latDec = coords[0];
+                        var latDeg = latDec.abs().toNumber();
+                        var latMin = ((latDec.abs() - latDeg) * 60).toNumber();
+                        var latDir = latDec >= 0 ? "N" : "S";
+                        currentLat = Lang.format("$1$°$2$$3$", [latDeg, latMin, latDir]);
+                        
+                        // Format longitude (XX°YY'E/W)
+                        var lonDec = coords[1];
+                        var lonDeg = lonDec.abs().toNumber();
+                        var lonMin = ((lonDec.abs() - lonDeg) * 60).toNumber();
+                        var lonDir = lonDec >= 0 ? "E" : "W";
+                        currentLon = Lang.format("$1$°$2$$3$", [lonDeg, lonMin, lonDir]);
+                    }
+                }
+            }
+        }
+    }
+
     function getCurrentWeather() as Void {
         if (Toybox has :Weather) {
             var conditions = Weather.getCurrentConditions();
@@ -463,71 +510,91 @@ class PipBoyView extends WatchUi.WatchFace {
         );
     }
 
+    // Draw the status boxes
     function drawStatus(dc as Dc) as Void {
-        // Box dimensions
-        var totalWidth = (STATUS_BOXSIZE * 3) + (STATUS_BOXMRGN * 2);
-        var startX = (screenWidth - totalWidth) / 2;
-        var startY = screenHeight - STATUS_YOFF - STATUS_BOXSIZE;
+        // Box dimensions and placement
+        var boxSize = 18;
+        var rightMargin = 9;
+        var padding = 6;
+        var startX = screenWidth - boxSize - rightMargin;
         
-        // Draw three empty boxes
-        dc.setColor(hasMessages ? FG_COLOR : BG_COLOR, BG_COLOR);
-        dc.fillRectangle(startX, startY, STATUS_BOXSIZE, STATUS_BOXSIZE);
-        dc.setColor(hasAlarms ? FG_COLOR : BG_COLOR, BG_COLOR);
-        dc.fillRectangle(
-            startX + STATUS_BOXSIZE + STATUS_BOXMRGN,
-            startY,
-            STATUS_BOXSIZE,
-            STATUS_BOXSIZE
+        // Calculate vertical positioning to center around screenHalfHeight
+        var totalHeight = (boxSize * 3) + (padding * 2);
+        var startY = screenHalfHeight - (totalHeight / 2) - 2;
+        
+        // Icons for each status box
+        var messageIcon = "k";
+        var alarmIcon = "R";
+        var phoneIcon = "V";
+        
+        // Draw message status box
+        dc.setColor(hasMessages ? FG_COLOR : INACTIVE_COLOR, NO_COLOR);
+        dc.fillRectangle(startX, startY, boxSize, boxSize);
+        dc.setColor(BG_COLOR, NO_COLOR);
+        dc.drawText(
+            startX + (boxSize / 2),
+            startY + (boxSize / 2),
+            ICON_FONT,
+            messageIcon,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
         );
-        dc.setColor(hasConnection ? FG_COLOR : BG_COLOR, BG_COLOR);
-        dc.fillRectangle(
-            startX + (STATUS_BOXSIZE + STATUS_BOXMRGN) * 2,
-            startY,
-            STATUS_BOXSIZE,
-            STATUS_BOXSIZE
+        
+        // Draw alarm status box
+        dc.setColor(hasAlarms ? FG_COLOR : INACTIVE_COLOR, NO_COLOR);
+        dc.fillRectangle(startX, startY + boxSize + padding, boxSize, boxSize);
+        dc.setColor(BG_COLOR, NO_COLOR);
+        dc.drawText(
+            startX + (boxSize / 2),
+            startY + boxSize + padding + (boxSize / 2) - 1,
+            ICON_FONT,
+            alarmIcon,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+        );
+        
+        // Draw phone connection status box
+        dc.setColor(hasConnection ? FG_COLOR : INACTIVE_COLOR, NO_COLOR);
+        dc.fillRectangle(startX, startY + (boxSize + padding) * 2, boxSize, boxSize);
+        dc.setColor(BG_COLOR, NO_COLOR);
+        dc.drawText(
+            startX + (boxSize / 2),
+            startY + (boxSize + padding) * 2 + (boxSize / 2) - 1,
+            ICON_FONT,
+            phoneIcon,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
         );
     }
 
     function drawVitals(dc as Dc) as Void {
-        var w = (screenWidth * 0.40).toNumber();  // A little less than half the screen
-        var h = 16;
-        var pad = 5;
-        var x = screenHalfWidth + 8;
-        var y = 80;
+        var w = (screenWidth * 0.35).toNumber();  // A little less than half the screen
+        var h = 17;
+        var pad = 7;
+        var x = screenHalfWidth + 2;
+        var y = 71;
         
         // Draw each vital stat with its progress bar
-        drawVitalBar(dc, x, y, "EM", activeMinutes, activeMinutesGoal, w, h);
+        drawVitalBar(dc, x, y, "o", activeMinutes, activeMinutesGoal, w, h);
         y += h + pad;
-        drawVitalBar(dc, x, y, "CL", caloriesBurned, caloriesBurnedGoal, w, h);
+        drawVitalBar(dc, x, y, "X", caloriesBurned, caloriesBurnedGoal, w, h);
         y += h + pad;
-        drawVitalBar(dc, x, y, "SP", steps, stepGoal, w, h);
+        drawVitalBar(dc, x, y, "Q", steps, stepGoal, w, h);
         y += h + pad;
-        drawVitalBar(dc, x, y, "BB", bodyBattery, 100, w, h);
+        drawVitalBar(dc, x, y, "A", bodyBattery, 100, w, h);
         y += h + pad;
-        drawVitalBar(dc, x, y, "SR", stress, 100, w, h);
+        drawVitalBar(dc, x, y, "Y", stress, 100, w, h);
     }
 
     // Helper function to draw a single vital stat bar
-    function drawVitalBar(dc as Dc, x as Number, y as Number, name as String, 
+    function drawVitalBar(dc as Dc, x as Number, y as Number, icon as String, 
                           value as Number, goal as Number, width as Number, 
                           height as Number) as Void {
-        var font = Graphics.FONT_XTINY;
         var padding = 3;
-        var progressWidth = width - 60;  // Leave room for label and value
-        var nameWidth = 30;
+        var iconWidth = dc.getTextDimensions("W", ICON_FONT)[0] + (padding * 2);
+        var valueWidth = 40;  // Space for the numeric value
+        var progressWidth = width - iconWidth - valueWidth;
         
-        // Draw outline rectangle
-        dc.setColor(FG_COLOR, NO_COLOR);
-        dc.drawRectangle(x, y, width, height);
-        
-        // Draw 3-letter abbreviation
-        dc.drawText(
-            x + padding, 
-            y + (height / 2) - 1, 
-            font, 
-            name, 
-            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER
-        );
+        // Draw main background rectangle
+        dc.setColor(INACTIVE_COLOR, NO_COLOR);
+        dc.fillRectangle(x, y, width, height);
         
         // Calculate progress percentage (handle division by zero)
         var percentage;
@@ -538,31 +605,43 @@ class PipBoyView extends WatchUi.WatchFace {
             percentage = 0;
         }
         
-        // Draw progress bar background
-        dc.setColor(CRT_COLOR, CRT_COLOR);
-        dc.fillRectangle(
-            x + nameWidth,
-            y + padding,
-            progressWidth,
-            height - (padding * 2)
-        );
-        
         // Draw filled portion of progress bar
         dc.setColor(FG_COLOR, FG_COLOR);
         dc.fillRectangle(
-            x + nameWidth,
+            x + iconWidth,
             y + padding,
             (progressWidth * percentage).toNumber(),
             height - (padding * 2)
         );
         
-        // Draw value
+        // Draw the four thin rectangles for the border (since we can't set line width)
+        dc.setColor(FG_COLOR, FG_COLOR);
+        // Top bar - with padding
+        dc.fillRectangle(x + iconWidth, y + padding, progressWidth, BAR_WIDTH);
+        // Bottom bar - with padding
+        dc.fillRectangle(x + iconWidth, y + height - padding - BAR_WIDTH, progressWidth, BAR_WIDTH);
+        // Left bar - with padding
+        dc.fillRectangle(x + iconWidth, y + padding, BAR_WIDTH, height - (padding * 2));
+        // Right bar - with padding
+        dc.fillRectangle(x + iconWidth + progressWidth - BAR_WIDTH, y + padding, BAR_WIDTH, height - (padding * 2));
+        
+        // Draw icon placeholder (use first character of name for now)
+        dc.setColor(FG_COLOR, NO_COLOR);
+        dc.drawText(
+            x + (iconWidth / 2),
+            y + (height / 2),
+            ICON_FONT,
+            icon,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+        );
+        
+        // Draw value text
         var valueStr = value.toString();
         dc.setColor(FG_COLOR, NO_COLOR);
         dc.drawText(
             x + width - padding,
             y + (height / 2),
-            font,
+            Graphics.FONT_XTINY,
             valueStr,
             Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
         );
@@ -689,19 +768,20 @@ class PipBoyView extends WatchUi.WatchFace {
         var lw = BAR_WIDTH;
         
         // Create a narrower bar with text clustered more centrally
-        var barWidth = screenWidth * 0.6;
+        var barWidth = screenWidth * 0.65;
         var barStartX = (screenWidth - barWidth) / 2;
         var barEndX = barStartX + barWidth;
         
         // Calculate label positions more closely clustered
-        var tx1 = barStartX + (barWidth * 0.22);
+        var tx1 = barStartX + (barWidth * 0.2);
         var tx2 = barStartX + (barWidth * 0.5);
-        var tx3 = barStartX + (barWidth * 0.78);
+        var tx3 = barStartX + (barWidth * 0.8);
 
         // Get text dimensions
-        var dims1 = dc.getTextDimensions(title1, DAY_FONT);
-        var dims2 = dc.getTextDimensions(title2, DAY_FONT);
-        var dims3 = dc.getTextDimensions(title3, DAY_FONT);
+        var font = DATE_FONT;
+        var dims1 = dc.getTextDimensions(title1, font);
+        var dims2 = dc.getTextDimensions(title2, font);
+        var dims3 = dc.getTextDimensions(title3, font);
         
         var w1 = dims1[0];
         var w2 = dims2[0];
@@ -735,23 +815,66 @@ class PipBoyView extends WatchUi.WatchFace {
         dc.drawText(
             tx1,
             ty - 2,
-            DAY_FONT,
+            font,
             title1,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
         );
         dc.drawText(
             tx2,
             ty - 2,
-            DAY_FONT,
+            font,
             title2,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
         );
         dc.drawText(
             tx3,
             ty - 2,
-            DAY_FONT,
+            font,
             title3,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+        );
+    }
+
+    function drawLatLong(dc as Dc) as Void {
+        // Calculate positioning for the center of the screen
+        var yPosition = screenHeight - POS_YOFF;
+        
+        // Get text dimensions for both coordinates
+        var latDims = dc.getTextDimensions(currentLat, DAY_FONT);
+        var lonDims = dc.getTextDimensions(currentLon, DAY_FONT);
+        
+        var latWidth = latDims[0];
+        var lonWidth = lonDims[0];
+        
+        // Calculate total width needed and start positions
+        var totalWidth = latWidth + lonWidth + 6; // padding between boxes
+        var latX = screenHalfWidth - (totalWidth / 2) + (latWidth / 2);
+        var lonX = latX + (latWidth / 2) + 6 + (lonWidth / 2);
+        
+        // Draw latitude with filled background using drawInvertedText
+        drawInvertedText(
+            dc,
+            latX,
+            yPosition,
+            currentLat,
+            DAY_FONT,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER,
+            0,  // No horizontal padding inside box
+            0,  // No vertical padding inside box
+            true // Fill the background
+        );
+        
+        // Draw longitude with filled background
+        drawInvertedText(
+            dc,
+            lonX,
+            yPosition,
+            currentLon,
+            DAY_FONT,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER,
+            0,  // No horizontal padding inside box
+            0,  // No vertical padding inside box
+            true // Fill the background
         );
     }
 
