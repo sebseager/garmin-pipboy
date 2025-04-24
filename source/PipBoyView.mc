@@ -28,7 +28,7 @@ class PipBoyView extends WatchUi.WatchFace {
     // Measurements
     const CRT_FREQ = 3;
     const TEMP_YOFF = 46;
-    const TEMP_BARLENGTH = 100;
+    const TEMP_BARLENGTH = 110;
     const BAR_WIDTH = 2;
     const TIME_XOFF = 50;
     const TIME_YPAD = -9; // Controls vertical spacing of hours and minutes
@@ -102,8 +102,7 @@ class PipBoyView extends WatchUi.WatchFace {
         currentTemp = 45; // TODO: DEBUG
 
         drawTemp(dc);
-
-        // TODO: Draw the sun/moon/cloud above temp
+        drawCelestialIcon(dc);
 
         drawTime(dc);
         // drawStatus(dc);
@@ -233,6 +232,97 @@ class PipBoyView extends WatchUi.WatchFace {
                 BAR_WIDTH
             );
         }
+    }
+
+    // Draw the moving sun/moon icon
+    function drawCelestialIcon(dc as Dc) as Void {
+        // Constants for icon positioning
+        var topMargin = 12;  // Distance from top of screen to highest point of arcs
+        var iconSideOffset = 46; // How far from center to the sides the icon travels
+        
+        // Draw weather icon based on time of day
+        var hour = currentTime.hour;
+        var min = currentTime.min;
+        
+        // Convert time to decimal hours for smooth movement
+        var decimalHour = hour + (min / 60.0);
+        
+        // Determine which icon to show
+        var iconChar;
+        if (decimalHour >= 4 && decimalHour < 6) {
+            iconChar = "b"; // sunrise
+        } else if (decimalHour >= 6 && decimalHour < 17) {
+            iconChar = "q"; // sun
+        } else if (decimalHour >= 18 && decimalHour < 20) {
+            iconChar = "b"; // sunset
+        } else {
+            iconChar = "c"; // moon
+        }
+        
+        // Calculate necessary offsets
+        var iconHeight = dc.getFontHeight(ICON_FONT);
+        var voff = (iconHeight / 2) + 6; // Half icon height plus padding
+        
+        // Baseline for the icons should be above the temperature bars
+        var baselineY = TEMP_YOFF - voff;
+        
+        // Set maximum heights for day and night arcs
+        var dayMaxHeight = baselineY - topMargin; // Higher maximum for day (sun goes higher)
+        var nightMaxHeight = dayMaxHeight * 1.0; // Lower maximum for night (moon stays lower)
+        
+        // Calculate icon position
+        var iconX, iconY;
+        
+        // Morning arc (4am to noon)
+        if (decimalHour >= 4 && decimalHour < 12) {
+            var progress = (decimalHour - 4) / 8.0; // 0 to 1 as time goes from 4am to noon
+            
+            // X moves from left edge to center
+            iconX = screenHalfWidth - iconSideOffset + (iconSideOffset * progress);
+            
+            // Y moves from baseline to high point
+            iconY = baselineY - (dayMaxHeight * progress);
+        }
+        // Afternoon arc (noon to 8pm)
+        else if (decimalHour >= 12 && decimalHour < 20) {
+            var progress = (decimalHour - 12) / 8.0; // 0 to 1 as time goes from noon to 8pm
+            
+            // X moves from center to right edge
+            iconX = screenHalfWidth + (iconSideOffset * progress);
+            
+            // Y moves from high point back down to baseline
+            iconY = baselineY - dayMaxHeight + (dayMaxHeight * progress);
+        }
+        // Night arc (8pm to 4am)
+        else {
+            // Normalize hours to 0-8 range from 8pm to 4am (crossing midnight)
+            var nightHour = (decimalHour < 4) ? decimalHour + 24 : decimalHour;
+            var progress = (nightHour - 20) / 8.0; // 0 to 1 as time goes from 8pm to 4am
+            
+            // X moves from right to left
+            iconX = screenHalfWidth + iconSideOffset - (iconSideOffset * 2 * progress);
+            
+            // Use the same approach as daytime arcs, just with a different height
+            if (progress < 0.5) {
+                // 8pm to midnight: Moving up to peak
+                var upProgress = progress * 2; // Scale 0-0.5 to 0-1
+                iconY = baselineY - (nightMaxHeight * upProgress);
+            } else {
+                // Midnight to 4am: Moving down from peak
+                var downProgress = (progress - 0.5) * 2; // Scale 0.5-1 to 0-1
+                iconY = baselineY - nightMaxHeight + (nightMaxHeight * downProgress);
+            }
+        }
+        
+        // Draw the icon
+        dc.setColor(FG_COLOR, NO_COLOR);
+        dc.drawText(
+            iconX,
+            iconY,
+            ICON_FONT,
+            iconChar,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+        );
     }
 
     // Draw the time and date
