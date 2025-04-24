@@ -16,7 +16,7 @@ class PipBoyView extends WatchUi.WatchFace {
     const BG_COLOR = Graphics.COLOR_BLACK;
     const CRT_COLOR = 0x003355;
     const FG_COLOR = 0x00FFFF;
-    const MAX_TEMP = 99999;
+    const BAD_NUM = 999999;
 
     // Fonts
     const TEMP_FONT = WatchUi.loadResource(Rez.Fonts.monofonto24);
@@ -27,7 +27,7 @@ class PipBoyView extends WatchUi.WatchFace {
 
     // Measurements
     const CRT_FREQ = 3;
-    const TEMP_YOFF = 46;
+    const TEMP_YOFF = 50;
     const TEMP_BARLENGTH = 110;
     const BAR_WIDTH = 2;
     const TIME_XOFF = 50;
@@ -47,7 +47,9 @@ class PipBoyView extends WatchUi.WatchFace {
     var screenHalfWidth;
     var screenHeight;
     var screenHalfHeight;
-    var currentTemp = MAX_TEMP;
+    var currentTemp = BAD_NUM;
+    var currentPrecip = BAD_NUM;
+    var currentHumidity = BAD_NUM;
     var hasMessages = false;
     var hasAlarms = false;
     var hasConnection = false;
@@ -101,13 +103,15 @@ class PipBoyView extends WatchUi.WatchFace {
 
         currentTemp = 45; // TODO: DEBUG
 
-        drawTemp(dc);
+        var tempStr = Lang.format("$1$°", [currentTemp.toNumber()]);
+        drawTopBar(dc, "XX%", tempStr, "ZZ@", 4);
+
         drawCelestialIcon(dc);
 
         drawTime(dc);
         // drawStatus(dc);
 
-        drawTabs(dc, "HRS", "WTR", "MAP", 8);
+        drawBottomTabs(dc, "HRS", "WTR", "MAP", 8);
 
         drawVitals(dc);
 
@@ -190,50 +194,6 @@ class PipBoyView extends WatchUi.WatchFace {
         }
     }
 
-    // Draw the temperature in a bar across the top
-    function drawTemp(dc as Dc) as Void {
-        if (currentTemp < MAX_TEMP) {
-            // Draw temperature text
-            var str = Lang.format("$1$°", [currentTemp.toNumber()]);
-            var strHeight = dc.getFontHeight(TEMP_FONT);
-            var strWidth = dc.getTextWidthInPixels(str, TEMP_FONT);
-            var strHalfWidth = strWidth / 2;
-            dc.setColor(FG_COLOR, NO_COLOR);
-            dc.drawText(
-                screenHalfWidth,
-                TEMP_YOFF - strHeight / 2 - 2,
-                TEMP_FONT,
-                str,
-                Graphics.TEXT_JUSTIFY_CENTER
-            );
-
-            // Draw temperature bar on either side
-            var barLength = (TEMP_BARLENGTH - strWidth) / 2;
-            dc.setColor(FG_COLOR, FG_COLOR);
-            dc.fillRectangle(
-                screenHalfWidth - strHalfWidth - barLength - 4,
-                TEMP_YOFF,
-                barLength - 4,
-                BAR_WIDTH
-            );
-            dc.fillRectangle(
-                screenHalfWidth + strHalfWidth + 2,
-                TEMP_YOFF,
-                barLength - 2,
-                BAR_WIDTH
-            );
-        } else {
-            // Draw a full bar if no temperature is available
-            dc.setColor(FG_COLOR, FG_COLOR);
-            dc.fillRectangle(
-                (screenWidth - TEMP_BARLENGTH) / 2, 
-                TEMP_YOFF, 
-                TEMP_BARLENGTH, 
-                BAR_WIDTH
-            );
-        }
-    }
-
     // Draw the moving sun/moon icon
     function drawCelestialIcon(dc as Dc) as Void {
         // Constants for icon positioning
@@ -261,7 +221,7 @@ class PipBoyView extends WatchUi.WatchFace {
         
         // Calculate necessary offsets
         var iconHeight = dc.getFontHeight(ICON_FONT);
-        var voff = (iconHeight / 2) + 6; // Half icon height plus padding
+        var voff = (iconHeight / 2) + 10; // Half icon height plus padding
         
         // Baseline for the icons should be above the temperature bars
         var baselineY = TEMP_YOFF - voff;
@@ -558,7 +518,8 @@ class PipBoyView extends WatchUi.WatchFace {
     }
 
     // Draw a tab bar with three labels where the line deviates under the middle label only
-    function drawTabs(dc as Dc, title1 as String, title2 as String, title3 as String, hpad as Number) as Void {
+    function drawBottomTabs(dc as Dc, title1 as String, title2 as String, 
+                            title3 as String, hpad as Number) as Void {
         // Tab bar position
         var ty = screenHeight - TAB_YOFF;
         var lw = BAR_WIDTH;
@@ -618,6 +579,80 @@ class PipBoyView extends WatchUi.WatchFace {
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
         );
         
+        dc.drawText(
+            tx3,
+            ty - 2,
+            DAY_FONT,
+            title3,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+        );
+    }
+
+    // Draw a top bar with three evenly spaced labels that break the line
+    function drawTopBar(dc as Dc, title1 as String, title2 as String, 
+                        title3 as String, hpad as Number) as Void {
+        // Top bar position
+        var ty = TEMP_YOFF;
+        var lw = BAR_WIDTH;
+        
+        // Create a narrower bar with text clustered more centrally
+        var barWidth = screenWidth * 0.6;
+        var barStartX = (screenWidth - barWidth) / 2;
+        var barEndX = barStartX + barWidth;
+        
+        // Calculate label positions more closely clustered
+        var tx1 = barStartX + (barWidth * 0.22);
+        var tx2 = barStartX + (barWidth * 0.5);
+        var tx3 = barStartX + (barWidth * 0.78);
+
+        // Get text dimensions
+        var dims1 = dc.getTextDimensions(title1, DAY_FONT);
+        var dims2 = dc.getTextDimensions(title2, DAY_FONT);
+        var dims3 = dc.getTextDimensions(title3, DAY_FONT);
+        
+        var w1 = dims1[0];
+        var w2 = dims2[0];
+        var w3 = dims3[0];
+        
+        // Set drawing color
+        dc.setColor(FG_COLOR, FG_COLOR);
+        
+        // Draw the line segments with breaks for text
+        
+        // Left bracket - vertical part (10px tall)
+        dc.fillRectangle(barStartX, ty - lw/2, lw, 10);
+        
+        // Segment 1: left bracket to first label
+        dc.fillRectangle(barStartX, ty - lw/2, tx1 - w1/2 - hpad - barStartX, lw);
+        
+        // Segment 2: after first label to before second label
+        dc.fillRectangle(tx1 + w1/2 + hpad, ty - lw/2, tx2 - w2/2 - hpad - (tx1 + w1/2 + hpad), lw);
+        
+        // Segment 3: after second label to before third label
+        dc.fillRectangle(tx2 + w2/2 + hpad, ty - lw/2, tx3 - w3/2 - hpad - (tx2 + w2/2 + hpad), lw);
+        
+        // Segment 4: after third label to right bracket
+        dc.fillRectangle(tx3 + w3/2 + hpad, ty - lw/2, barEndX - (tx3 + w3/2 + hpad), lw);
+        
+        // Right bracket - vertical part (10px tall)
+        dc.fillRectangle(barEndX - lw, ty - lw/2, lw, 10);
+        
+        // Draw the text for each label
+        dc.setColor(FG_COLOR, NO_COLOR);
+        dc.drawText(
+            tx1,
+            ty - 2,
+            DAY_FONT,
+            title1,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+        );
+        dc.drawText(
+            tx2,
+            ty - 2,
+            DAY_FONT,
+            title2,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+        );
         dc.drawText(
             tx3,
             ty - 2,
