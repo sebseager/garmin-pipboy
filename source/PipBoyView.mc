@@ -37,19 +37,25 @@ class PipBoyView extends WatchUi.WatchFace {
     const STATUS_YOFF = 20;
     const STATUS_BOXSIZE = 15;
     const STATUS_BOXMRGN = 5;
-    const TAB_YOFF = 52;
+    const TABS_YOFF = 52;
 
     // =================================================================================
     // Variables
     // =================================================================================
 
+    // Device screen
     var screenWidth;
     var screenHalfWidth;
     var screenHeight;
     var screenHalfHeight;
+
+    // Weather
     var currentTemp = BAD_NUM;
     var currentPrecip = BAD_NUM;
     var currentHumidity = BAD_NUM;
+
+    // Settings
+    var currentSettings;
     var hasMessages = false;
     var hasAlarms = false;
     var hasConnection = false;
@@ -59,6 +65,7 @@ class PipBoyView extends WatchUi.WatchFace {
     var currentDate;
 
     // Vitals
+    var activityInfo;
     var activeMinutes = 0;
     var activeMinutesGoal = 0;
     var caloriesBurned = 0;
@@ -67,6 +74,10 @@ class PipBoyView extends WatchUi.WatchFace {
     var stepGoal = 0;
     var bodyBattery = 100;
     var stress = 0;
+
+    // Other
+    var allVitalsValid = true;
+    var aboutToSleep = false;
 
     // =================================================================================
     // Delegate Functions
@@ -79,10 +90,11 @@ class PipBoyView extends WatchUi.WatchFace {
     // Load your resources here
     function onLayout(dc as Dc) as Void {
         setLayout(Rez.Layouts.WatchFace(dc));
-        screenWidth = dc.getWidth();
-        screenHeight = dc.getHeight();
-        screenHalfWidth = screenWidth / 2;
-        screenHalfHeight = screenHeight / 2;
+
+        measureScreen(dc);
+        getCurrentWeather();
+        getCurrentSettings();
+        getCurrentActivityInfo();
     }
 
     // Called when this View is brought to the foreground. Restore
@@ -100,39 +112,27 @@ class PipBoyView extends WatchUi.WatchFace {
         // Start redraw
         dc.clear();
         drawCRT(dc, CRT_FREQ);
-
-        currentTemp = 45; // TODO: DEBUG
-
-        var tempStr = Lang.format("$1$°", [currentTemp.toNumber()]);
-        drawTopBar(dc, "XX%", tempStr, "ZZ@", 4);
-
         drawCelestialIcon(dc);
-
         drawTime(dc);
-        // drawStatus(dc);
-
         drawBottomTabs(dc, "HRS", "WTR", "MAP", 8);
+        drawStatus(dc);
 
-        drawVitals(dc);
+        // Only draw top bar if we have weather data
+        if (currentTemp < BAD_NUM && currentPrecip < BAD_NUM && currentHumidity < BAD_NUM) {
+            var tempStr = Lang.format("$1$°", [currentTemp.toNumber()]);
+            var precipStr = Lang.format("$1$%", [currentPrecip.toNumber()]);
+            var humidityStr = Lang.format("$1$%", [currentHumidity.toNumber()]);
+            drawTopBar(dc, precipStr, tempStr, humidityStr, 4);
+        }
+
+        if (!aboutToSleep && allVitalsValid) {
+            drawVitals(dc);
+        } else {
+            // Draw the fallout dude!
+        }
 
         // Set a black background
         dc.setColor(NO_COLOR, BG_COLOR);
-
-        // // Get the current time and format it correctly
-        // var timeFormat = "$1$:$2$";
-        // var clockTime = System.getClockTime();
-        // var hours = clockTime.hour;
-        // if (!System.getDeviceSettings().is24Hour) {
-        //     if (hours > 12) {
-        //         hours = hours - 12;
-        //     }
-        // } else {
-        //     if (Application.Properties.getValue("UseMilitaryFormat")) {
-        //         timeFormat = "$1$$2$";
-        //         hours = hours.format("%02d");
-        //     }
-        // }
-        // var timeString = Lang.format(timeFormat, [hours, clockTime.min.format("%02d")]);
 
         // // Update the view
         // var view = View.findDrawableById("TimeLabel") as Text;
@@ -151,40 +151,133 @@ class PipBoyView extends WatchUi.WatchFace {
 
     // The user has just looked at their watch. Timers and animations may be started here.
     function onExitSleep() as Void {
-        // Get anything we need from current weather
+        aboutToSleep = false;
+        getCurrentWeather();
+        getCurrentSettings();
+        getCurrentActivityInfo();
+    }
+
+    // Terminate any active timers and prepare for slow updates.
+    function onEnterSleep() as Void {
+        aboutToSleep = true;
+    }
+
+    // =================================================================================
+    // Data Helpers
+    // =================================================================================
+    
+    function getCurrentWeather() as Void {
         if (Toybox has :Weather) {
             var conditions = Weather.getCurrentConditions();
             if (conditions != null) {
                 if (conditions.temperature != null) {
                     currentTemp = conditions.temperature;
                 }
+                if (conditions.precipitationChance != null) {
+                    currentPrecip = conditions.precipitationChance;
+                }
+                if (conditions.relativeHumidity != null) {
+                    currentHumidity = conditions.relativeHumidity;
+                }
             }
         }
-
-        // Grab device settings
-        var settings = System.getDeviceSettings();
-        hasMessages = settings.notificationCount > 0;
-        hasAlarms = settings.alarmCount > 0;
-        hasConnection = settings.phoneConnected;
-
-        // TODO: Grab user vitals
-        // var userInfo = ActivityMonitor.getInfo();
-        // if (userInfo != null) {
-        //     activeMinutes = userInfo.activeMinutesWeek;
-        //     activeMinutesGoal = userInfo.activeMinutesWeekGoal;
-        //     steps = userInfo.steps;
-        //     stepGoal = userInfo.stepGoal;
-        //     stress = userInfo.stressScore;
-        // }
     }
 
-    // Terminate any active timers and prepare for slow updates.
-    function onEnterSleep() as Void {
+    // Get the current device settings
+    function getCurrentSettings() as Void {
+        currentSettings = System.getDeviceSettings();
+        hasMessages = currentSettings.notificationCount > 0;
+        hasAlarms = currentSettings.alarmCount > 0;
+        hasConnection = currentSettings.phoneConnected;
+    }
+
+    // Get the current user info
+    function getCurrentActivityInfo() as Void {
+        allVitalsValid = true;
+        if (Toybox has :ActivityMonitor) {
+            var info = ActivityMonitor.getInfo();
+            if (info != null) {
+                activityInfo = info;
+                if (info.steps != null) {
+                    steps = info.steps;
+                } else {
+                    allVitalsValid = false;
+                }
+                if (info.stepGoal != null) {
+                    stepGoal = info.stepGoal;
+                } else {
+                    allVitalsValid = false;
+                }
+                if (info.calories != null) {
+                    caloriesBurned = info.calories;
+                } else {
+                    allVitalsValid = false;
+                }
+                if (info.activeMinutesDay != null) {
+                    activeMinutes = info.activeMinutesDay.total;
+                } else {
+                    allVitalsValid = false;
+                }
+                if (info.activeMinutesWeekGoal != null) {
+                    activeMinutesGoal = info.activeMinutesWeekGoal;
+                } else {
+                    allVitalsValid = false;
+                }
+            } else {
+                allVitalsValid = false;
+            }
+        } else {
+            allVitalsValid = false;
+        }
+
+        if (Toybox has :SensorHistory) {
+            // Get body battery data if available
+            if (Toybox.SensorHistory has :getBodyBatteryHistory) {
+                var bbIterator = Toybox.SensorHistory.getBodyBatteryHistory({});
+                if (bbIterator != null) {
+                    var sample = bbIterator.next();
+                    if (sample != null && sample.data != null) {
+                        bodyBattery = sample.data.toNumber();
+                    } else {
+                        allVitalsValid = false;
+                    }
+                } else {
+                    allVitalsValid = false;
+                }
+            } else {
+                allVitalsValid = false;
+            }
+
+            // Get stress data if available
+            if (Toybox.SensorHistory has :getStressHistory) {
+                var stressIterator = Toybox.SensorHistory.getStressHistory({});
+                if (stressIterator != null) {
+                    var sample = stressIterator.next();
+                    if (sample != null && sample.data != null) {
+                        stress = sample.data.toNumber();
+                    } else {
+                        allVitalsValid = false;
+                    }
+                } else {
+                    allVitalsValid = false;
+                }
+            } else {
+                allVitalsValid = false;
+            }
+        }
     }
 
     // =================================================================================
     // Layout Helpers - only callable from onUpdate
     // =================================================================================
+
+    // Get screen dimensions
+    function measureScreen(dc as Dc) as Void {
+        screenWidth = dc.getWidth();
+        screenHeight = dc.getHeight();
+        screenHalfWidth = screenWidth / 2;
+        screenHalfHeight = screenHeight / 2;
+    }
 
     // Draw the CRT effect
     function drawCRT(dc as Dc, freq as Number) as Void {
@@ -396,31 +489,28 @@ class PipBoyView extends WatchUi.WatchFace {
     }
 
     function drawVitals(dc as Dc) as Void {
-        var vitalBarWidth = (screenWidth * 0.40).toNumber();  // A little less than half the screen
-        var vitalBarHeight = 16;
-        var vitalBarSpacing = 5;
-        var vitalStartX = screenHalfWidth + 8;
-        var vitalStartY = 80;
+        var w = (screenWidth * 0.40).toNumber();  // A little less than half the screen
+        var h = 16;
+        var pad = 5;
+        var x = screenHalfWidth + 8;
+        var y = 80;
         
         // Draw each vital stat with its progress bar
-        drawVitalBar(dc, vitalStartX, vitalStartY, "EM", activeMinutes, activeMinutesGoal, vitalBarWidth, vitalBarHeight);
-        vitalStartY += vitalBarHeight + vitalBarSpacing;
-        
-        drawVitalBar(dc, vitalStartX, vitalStartY, "CL", caloriesBurned, caloriesBurnedGoal, vitalBarWidth, vitalBarHeight);
-        vitalStartY += vitalBarHeight + vitalBarSpacing;
-        
-        drawVitalBar(dc, vitalStartX, vitalStartY, "SP", steps, stepGoal, vitalBarWidth, vitalBarHeight);
-        vitalStartY += vitalBarHeight + vitalBarSpacing;
-        
-        drawVitalBar(dc, vitalStartX, vitalStartY, "ST", bodyBattery, 100, vitalBarWidth, vitalBarHeight);
-        vitalStartY += vitalBarHeight + vitalBarSpacing;
-        
-        drawVitalBar(dc, vitalStartX, vitalStartY, "SR", stress, 100, vitalBarWidth, vitalBarHeight);
+        drawVitalBar(dc, x, y, "EM", activeMinutes, activeMinutesGoal, w, h);
+        y += h + pad;
+        drawVitalBar(dc, x, y, "CL", caloriesBurned, caloriesBurnedGoal, w, h);
+        y += h + pad;
+        drawVitalBar(dc, x, y, "SP", steps, stepGoal, w, h);
+        y += h + pad;
+        drawVitalBar(dc, x, y, "BB", bodyBattery, 100, w, h);
+        y += h + pad;
+        drawVitalBar(dc, x, y, "SR", stress, 100, w, h);
     }
 
     // Helper function to draw a single vital stat bar
-    function drawVitalBar(dc as Dc, x as Number, y as Number, name as String, value as Number, 
-                        goal as Number, width as Number, height as Number) as Void {
+    function drawVitalBar(dc as Dc, x as Number, y as Number, name as String, 
+                          value as Number, goal as Number, width as Number, 
+                          height as Number) as Void {
         var font = Graphics.FONT_XTINY;
         var padding = 3;
         var progressWidth = width - 60;  // Leave room for label and value
@@ -440,9 +530,12 @@ class PipBoyView extends WatchUi.WatchFace {
         );
         
         // Calculate progress percentage (handle division by zero)
-        var percentage = (goal > 0) ? (value.toFloat() / goal.toFloat()) : 0;
-        if (percentage > 1.0) {
-            percentage = 1.0;  // Cap at 100%
+        var percentage;
+        if (value != null && goal != null) {
+            percentage = (goal > 0) ? (value.toFloat() / goal.toFloat()) : 0;
+            percentage = percentage > 1.0 ? 1.0 : percentage;  // Cap at 100%
+        } else {
+            percentage = 0;
         }
         
         // Draw progress bar background
@@ -521,7 +614,7 @@ class PipBoyView extends WatchUi.WatchFace {
     function drawBottomTabs(dc as Dc, title1 as String, title2 as String, 
                             title3 as String, hpad as Number) as Void {
         // Tab bar position
-        var ty = screenHeight - TAB_YOFF;
+        var ty = screenHeight - TABS_YOFF;
         var lw = BAR_WIDTH;
         
         // Calculate tab positions (biased towards center a bit)
