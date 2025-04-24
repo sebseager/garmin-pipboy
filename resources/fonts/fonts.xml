@@ -1,0 +1,13 @@
+<fonts>
+    <font id="monofonto16" filename="monofonto/monofonto_16.fnt" antialias="true" />
+    <font id="monofonto20" filename="monofonto/monofonto_20.fnt" antialias="true" />
+    <font id="monofonto24" filename="monofonto/monofonto_24.fnt" antialias="true" />
+    <font id="monofonto32" filename="monofonto/monofonto_32.fnt" antialias="true" />
+    <font id="monofonto40" filename="monofonto/monofonto_40.fnt" antialias="true" />
+    <font id="monofonto48" filename="monofonto/monofonto_48.fnt" antialias="true" />
+    <font id="monofonto56" filename="monofonto/monofonto_56.fnt" antialias="true" />
+    <font id="monofonto64" filename="monofonto/monofonto_64.fnt" antialias="true" />
+    <font id="monofonto72" filename="monofonto/monofonto_72.fnt" antialias="true" />
+    <font id="monofonto80" filename="monofonto/monofonto_80.fnt" antialias="true" />
+    <font id="icons24" filename="icons/icons_24.fnt" antialias="true" />
+</fonts>
