@@ -12,29 +12,30 @@ class PipBoyView extends WatchUi.WatchFace {
     // =================================================================================
 
     // Colors
-    var NO_COLOR = Graphics.COLOR_TRANSPARENT;
-    var BG_COLOR = Graphics.COLOR_BLACK;
-    var CRT_COLOR = 0x003355;
-    var FG_COLOR = 0x00FFFF;
-    var MAX_TEMP = 99999;
+    const NO_COLOR = Graphics.COLOR_TRANSPARENT;
+    const BG_COLOR = Graphics.COLOR_BLACK;
+    const CRT_COLOR = 0x003355;
+    const FG_COLOR = 0x00FFFF;
+    const MAX_TEMP = 99999;
 
     // Fonts
-    var TEMP_FONT = Graphics.FONT_SYSTEM_TINY;
-    var TIME_FONT = Graphics.FONT_SYSTEM_NUMBER_HOT;
-    var DAY_FONT = Graphics.FONT_SYSTEM_XTINY;
-    var DATE_FONT = Graphics.FONT_SYSTEM_SMALL;
+    const TEMP_FONT = WatchUi.loadResource(Rez.Fonts.monofonto24);
+    const TIME_FONT = WatchUi.loadResource(Rez.Fonts.monofonto72);
+    const DAY_FONT = WatchUi.loadResource(Rez.Fonts.monofonto16);
+    const DATE_FONT = WatchUi.loadResource(Rez.Fonts.monofonto20);
 
     // Measurements
-    var CRT_FREQ = 3;
-    var TEMP_VOFFSET = 40;
-    var TEMP_BARLENGTH = 100;
-    var TEMP_BARWIDTH = 2;
-    var TIME_HOFFSET = 50;
-    var TIME_VOFFSET = -3;
-    var TIME_SQUEEZE = 16;
-    var STATUS_VOFFSET = 20;
-    var STATUS_BOXSIZE = 15;
-    var STATUS_BOXMRGN = 5;
+    const CRT_FREQ = 3;
+    const TEMP_YOFF = 40;
+    const TEMP_BARLENGTH = 100;
+    const TEMP_BARWIDTH = 2;
+    const TIME_XOFF = 50;
+    const TIME_YPAD = -9; // Controls vertical spacing of hours and minutes
+    const DATE_XPAD = 6; // Push date away from time
+    const DATE_YPAD = 2; // Push date components away from center line
+    const STATUS_YOFF = 20;
+    const STATUS_BOXSIZE = 15;
+    const STATUS_BOXMRGN = 5;
 
     // =================================================================================
     // Variables
@@ -85,7 +86,7 @@ class PipBoyView extends WatchUi.WatchFace {
     // Update the view
     function onUpdate(dc as Dc) as Void {
         dc.clear();
-        drawCRT(dc);
+        drawCRT(dc, CRT_FREQ);
 
         currentTemperature = 45; // TODO: DEBUG
 
@@ -169,9 +170,9 @@ class PipBoyView extends WatchUi.WatchFace {
     // =================================================================================
 
     // Draw the CRT effect
-    function drawCRT(dc as Dc) as Void {
+    function drawCRT(dc as Dc, freq as Number) as Void {
         dc.setColor(CRT_COLOR, NO_COLOR);
-        for (var i = 0; i < screenHeight; i += CRT_FREQ) {
+        for (var i = 0; i < screenHeight; i += freq) {
             dc.drawLine(0, i, screenWidth, i);
         }
     }
@@ -187,7 +188,7 @@ class PipBoyView extends WatchUi.WatchFace {
             dc.setColor(FG_COLOR, NO_COLOR);
             dc.drawText(
                 screenHalfWidth,
-                TEMP_VOFFSET - strHeight / 2 - 2,
+                TEMP_YOFF - strHeight / 2 - 2,
                 TEMP_FONT,
                 str,
                 Graphics.TEXT_JUSTIFY_CENTER
@@ -198,13 +199,13 @@ class PipBoyView extends WatchUi.WatchFace {
             dc.setColor(FG_COLOR, FG_COLOR);
             dc.fillRectangle(
                 screenHalfWidth - strHalfWidth - barLength - 4,
-                TEMP_VOFFSET,
+                TEMP_YOFF,
                 barLength,
                 TEMP_BARWIDTH
             );
             dc.fillRectangle(
                 screenHalfWidth + strHalfWidth + 2,
-                TEMP_VOFFSET,
+                TEMP_YOFF,
                 barLength,
                 TEMP_BARWIDTH
             );
@@ -213,7 +214,7 @@ class PipBoyView extends WatchUi.WatchFace {
             dc.setColor(FG_COLOR, FG_COLOR);
             dc.fillRectangle(
                 (screenWidth - TEMP_BARLENGTH) / 2, 
-                TEMP_VOFFSET, 
+                TEMP_YOFF, 
                 TEMP_BARLENGTH, 
                 TEMP_BARWIDTH
             );
@@ -236,15 +237,15 @@ class PipBoyView extends WatchUi.WatchFace {
         // Draw hours and minutes
         dc.setColor(FG_COLOR, NO_COLOR);
         dc.drawText(
-            TIME_HOFFSET,
-            screenHalfHeight - strHeight + TIME_SQUEEZE + TIME_VOFFSET,
+            TIME_XOFF,
+            screenHalfHeight - strHeight - TIME_YPAD,
             TIME_FONT,
             hourStr,
             Graphics.TEXT_JUSTIFY_LEFT
         );
         dc.drawText(
-            TIME_HOFFSET,
-            screenHalfHeight - TIME_SQUEEZE + TIME_VOFFSET,
+            TIME_XOFF,
+            screenHalfHeight + TIME_YPAD,
             TIME_FONT,
             minStr,
             Graphics.TEXT_JUSTIFY_LEFT
@@ -252,46 +253,58 @@ class PipBoyView extends WatchUi.WatchFace {
 
         // Get the current date
         var today = Time.Gregorian.info(Time.now(), Time.FORMAT_MEDIUM);
-        var dayStr = today.day_of_week.toUpper();
         var dateStr = Lang.format("$1$", [today.day.format("%02d")]);
+        var secStr = Lang.format(":$1$", [time.sec.format("%02d")]);
+        var dayStr = Lang.format("$1$", [today.day_of_week.toUpper()]);
+        var monthStr = Lang.format("$1$", [today.month.toUpper()]);
+        var secDims = dc.getTextDimensions(secStr, DAY_FONT);
         var dayDims = dc.getTextDimensions(dayStr, DAY_FONT);
-        var dateDims = dc.getTextDimensions(dateStr, DATE_FONT);
-        var hpad = 8; // push day/date away from the time
+        var monthDims = dc.getTextDimensions(monthStr, DAY_FONT);
 
         // Draw day of week with background rectangle
-        dc.setColor(FG_COLOR, FG_COLOR);
-        dc.fillRectangle(
-            TIME_HOFFSET - dayDims[0] - hpad,
-            screenHalfHeight - dayDims[1] + TIME_VOFFSET - 7,
-            dayDims[0] + 6,
-            dayDims[1] + 6
-        );
-        dc.setColor(BG_COLOR, NO_COLOR);
-        dc.drawText(
-            TIME_HOFFSET - hpad + 2,
-            screenHalfHeight - dayDims[1] + TIME_VOFFSET - 4,
-            DAY_FONT,
+        drawInvertedText(
+            dc,
+            TIME_XOFF - DATE_XPAD - 2,
+            screenHalfHeight - DATE_YPAD  - dayDims[1] - 6,
             dayStr,
-            Graphics.TEXT_JUSTIFY_RIGHT
+            DAY_FONT,
+            Graphics.TEXT_JUSTIFY_RIGHT,
+            4, // horizontal padding
+            0, // vertical padding
+            true // fill
+        );
+
+        // Draw month with background rectangle
+        drawInvertedText(
+            dc,
+            TIME_XOFF - DATE_XPAD - 2,
+            screenHalfHeight + DATE_YPAD,
+            monthStr,
+            DAY_FONT,
+            Graphics.TEXT_JUSTIFY_RIGHT,
+            4, // horizontal padding
+            0, // vertical padding
+            true // fill
         );
         
         // Draw numerical date
         dc.setColor(FG_COLOR, NO_COLOR);
         dc.drawText(
-            TIME_HOFFSET - hpad + 5,
-            screenHalfHeight + TIME_VOFFSET + 1,
+            TIME_XOFF - DATE_XPAD,
+            screenHalfHeight + DATE_YPAD + monthDims[1] + 2,
             DATE_FONT,
             dateStr,
             Graphics.TEXT_JUSTIFY_RIGHT
         );
 
-        // Draw a small rectangle under the date
-        dc.setColor(FG_COLOR, FG_COLOR);
-        dc.fillRectangle(
-            TIME_HOFFSET - hpad - dateDims[0] + 19,
-            screenHalfHeight + TIME_VOFFSET + dateDims[1] + 3,
-            dateDims[0] - 14, // a bit shorter than the date
-            5
+        // Draw seconds above the day
+        dc.setColor(time.sec % 2 ? FG_COLOR : FG_COLOR, NO_COLOR);
+        dc.drawText(
+            TIME_XOFF - DATE_XPAD,
+            screenHalfHeight - DATE_YPAD - dayDims[1] - secDims[1] - 14,
+            DATE_FONT,
+            secStr,
+            Graphics.TEXT_JUSTIFY_RIGHT
         );
     }
 
@@ -299,7 +312,7 @@ class PipBoyView extends WatchUi.WatchFace {
         // Box dimensions
         var totalWidth = (STATUS_BOXSIZE * 3) + (STATUS_BOXMRGN * 2);
         var startX = (screenWidth - totalWidth) / 2;
-        var startY = screenHeight - STATUS_VOFFSET - STATUS_BOXSIZE;
+        var startY = screenHeight - STATUS_YOFF - STATUS_BOXSIZE;
         
         // Draw three empty boxes
         dc.setColor(hasMessages ? FG_COLOR : BG_COLOR, BG_COLOR);
@@ -398,6 +411,48 @@ class PipBoyView extends WatchUi.WatchFace {
             valueStr,
             Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
         );
+    }
+
+    // Draw text with a filled rectangular background
+    function drawInvertedText(dc as Dc, x as Number, y as Number, text as String,
+                              font as FontResource, just as Number, hpad as Number,
+                              vpad as Number, fill as Boolean) as Void {
+        // Get text dimensions
+        var textDims = dc.getTextDimensions(text, font);
+        var textWidth = textDims[0];
+        var textHeight = textDims[1];
+        var rx, ry;
+        
+        // Calculate rectangle position based on text justification
+        // For horizontal positioning
+        if ((just & Graphics.TEXT_JUSTIFY_CENTER) == Graphics.TEXT_JUSTIFY_CENTER) {
+            rx = x - (textWidth / 2) - hpad;
+        } else if ((just & Graphics.TEXT_JUSTIFY_RIGHT) == Graphics.TEXT_JUSTIFY_RIGHT) {
+            rx = x - textWidth - hpad;
+        } else {
+            // Default to LEFT justification
+            rx = x - hpad;
+        }
+        
+        // For vertical positioning
+        if ((just & Graphics.TEXT_JUSTIFY_VCENTER) == Graphics.TEXT_JUSTIFY_VCENTER) {
+            ry = y - (textHeight / 2) - vpad;
+        } else {
+            // Default to TOP justification
+            ry = y - vpad;
+        }
+        
+        // Draw everything
+        dc.setColor(FG_COLOR, FG_COLOR);
+        if (fill) {
+            dc.fillRectangle(rx, ry, textWidth + (hpad * 2), textHeight + (vpad * 2));
+            dc.setColor(BG_COLOR, NO_COLOR);
+            dc.drawText(x, y, font, text, just);
+        } else {
+            dc.drawRectangle(rx, ry, textWidth + (hpad * 2), textHeight + (vpad * 2));
+            dc.setColor(FG_COLOR, NO_COLOR);
+            dc.drawText(x, y, font, text, just);
+        }
     }
 
 }
