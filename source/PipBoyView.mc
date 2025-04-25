@@ -124,8 +124,11 @@ class PipBoyView extends WatchUi.WatchFace {
         // Start redraw
         dc.clear();
         drawCRT(dc, CRT_FREQ);
-        drawCelestialIcon(dc);
         drawTime(dc);
+
+        drawCelestialIcon(dc);
+
+        drawVaultBoy(dc);
 
         // drawBottomTabs(dc, "HRS", "MAP", "WTR", 8);
         // drawStatus(dc);
@@ -145,12 +148,6 @@ class PipBoyView extends WatchUi.WatchFace {
         //     drawLatLong(dc);
         // } else if (selectedTab == 2) {
         //     // TODO
-        // }
-
-        // if (!aboutToSleep && allVitalsValid) {
-        //     drawVitals(dc);
-        // } else {
-        //     drawVaultBoy(dc);
         // }
 
         // Set a black background
@@ -324,6 +321,48 @@ class PipBoyView extends WatchUi.WatchFace {
     // Layout Helpers - only callable from onUpdate
     // =================================================================================
 
+    function drawCelestialIcon(dc as Dc) as Void {
+        // Configuration for the arc limits
+        var horizontalLimit = 40;  // Max distance in pixels from center horizontally
+        var verticalLimit = 8;    // Max distance in pixels from top of screen
+        var topPadding = 4;       // Minimum distance from the top of the screen
+        
+        // Get the current time
+        var hour = currentTime.hour;
+        var min = currentTime.min;
+        var hourDecimal = hour + (min / 60.0);
+        
+        // Calculate how many hours have passed since 4 AM
+        var hoursSince4am;
+        if (hourDecimal >= 4) {
+            hoursSince4am = hourDecimal - 4;
+        } else {
+            hoursSince4am = hourDecimal + 20;  // Add 24 - 4 = 20 hours
+        }
+        
+        // Calculate position around the arc (0.0 to 1.0)
+        var arcPosition;
+        if (hoursSince4am <= 16) {
+            // Day time (4 AM to 8 PM): Left to right
+            arcPosition = hoursSince4am / 16.0;
+        } else {
+            // Night time (8 PM to 4 AM): Right to left
+            arcPosition = 1.0 - ((hoursSince4am - 16) / 8.0);
+        }
+        
+        // Calculate the x position
+        var xOffset = (arcPosition * 2 - 1) * horizontalLimit;
+        var xPos = screenHalfWidth + xOffset;
+        
+        // Calculate the y position to follow an arc
+        var mappedX = arcPosition * 2 - 1;  // Map to -1 to 1
+        var yPos = topPadding + verticalLimit * (mappedX * mappedX);
+        
+        // Draw the celestial icon
+        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(xPos, yPos, CELESTIAL_ICONS, "c", Graphics.TEXT_JUSTIFY_CENTER);
+    }
+
     // Draw Vault Boy 
     function drawVaultBoy(dc as Dc) as Void {
         // Load the Vault Boy bitmap from resources
@@ -345,7 +384,9 @@ class PipBoyView extends WatchUi.WatchFace {
         
         // Draw the bitmap with the same color as other UI elements
         dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
-        dc.drawBitmap(x, y, vaultBoyBitmap);
+        dc.drawBitmap2(x, y, vaultBoyBitmap, {
+            :tintColor => THEME_BRIGHT, // Tint color
+        });
     }
 
     // Get screen dimensions
@@ -364,100 +405,6 @@ class PipBoyView extends WatchUi.WatchFace {
         }
     }
 
-    // Draw the moving sun/moon icon
-    function drawCelestialIcon(dc as Dc) as Void {
-        // Constants for icon positioning
-        var topMargin = 12;  // Distance from top of screen to highest point of arcs
-        var iconSideOffset = 46; // How far from center to the sides the icon travels
-        
-        // Draw weather icon based on time of day
-        var hour = currentTime.hour;
-        var min = currentTime.min;
-        
-        // Convert time to decimal hours for smooth movement
-        var decimalHour = hour + (min / 60.0);
-        
-        // Determine which icon to show
-        var iconChar;
-        if (decimalHour >= 4 && decimalHour < 6) {
-            iconChar = "a"; // sunrise
-        } else if (decimalHour >= 6 && decimalHour < 9) {
-            iconChar = "b"; // half sun
-        } else if (decimalHour >= 9 && decimalHour < 15) {
-            iconChar = "c"; // sun
-        } else if (decimalHour >= 15 && decimalHour < 18) {
-            iconChar = "b"; // half sun
-        } else if (decimalHour >= 18 && decimalHour < 20) {
-            iconChar = "a"; // sunset
-        } else {
-            iconChar = "d"; // moon
-        }
-        
-        // Calculate necessary offsets
-        var iconHeight = dc.getFontHeight(ICON_FONT);
-        var voff = (iconHeight / 2) + 10; // Half icon height plus padding
-        
-        // Baseline for the icons should be above the temperature bars
-        var baselineY = TEMP_YOFF - voff;
-        
-        // Set maximum heights for day and night arcs
-        var dayMaxHeight = baselineY - topMargin; // Higher maximum for day (sun goes higher)
-        var nightMaxHeight = dayMaxHeight * 1.0; // Lower maximum for night (moon stays lower)
-        
-        // Calculate icon position
-        var iconX, iconY;
-        
-        // Morning arc (4am to noon)
-        if (decimalHour >= 4 && decimalHour < 12) {
-            var progress = (decimalHour - 4) / 8.0; // 0 to 1 as time goes from 4am to noon
-            
-            // X moves from left edge to center
-            iconX = screenHalfWidth - iconSideOffset + (iconSideOffset * progress);
-            
-            // Y moves from baseline to high point
-            iconY = baselineY - (dayMaxHeight * progress);
-        }
-        // Afternoon arc (noon to 8pm)
-        else if (decimalHour >= 12 && decimalHour < 20) {
-            var progress = (decimalHour - 12) / 8.0; // 0 to 1 as time goes from noon to 8pm
-            
-            // X moves from center to right edge
-            iconX = screenHalfWidth + (iconSideOffset * progress);
-            
-            // Y moves from high point back down to baseline
-            iconY = baselineY - dayMaxHeight + (dayMaxHeight * progress);
-        }
-        // Night arc (8pm to 4am)
-        else {
-            // Normalize hours to 0-8 range from 8pm to 4am (crossing midnight)
-            var nightHour = (decimalHour < 4) ? decimalHour + 24 : decimalHour;
-            var progress = (nightHour - 20) / 8.0; // 0 to 1 as time goes from 8pm to 4am
-            
-            // X moves from right to left
-            iconX = screenHalfWidth + iconSideOffset - (iconSideOffset * 2 * progress);
-            
-            // Use the same approach as daytime arcs, just with a different height
-            if (progress < 0.5) {
-                // 8pm to midnight: Moving up to peak
-                var upProgress = progress * 2; // Scale 0-0.5 to 0-1
-                iconY = baselineY - (nightMaxHeight * upProgress);
-            } else {
-                // Midnight to 4am: Moving down from peak
-                var downProgress = (progress - 0.5) * 2; // Scale 0.5-1 to 0-1
-                iconY = baselineY - nightMaxHeight + (nightMaxHeight * downProgress);
-            }
-        }
-        
-        // Draw the icon
-        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(
-            iconX,
-            iconY,
-            CELESTIAL_ICONS,
-            iconChar,
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-        );
-    }
 
     // Draw the time and date
     function drawTime(dc as Dc) as Void {
@@ -492,7 +439,7 @@ class PipBoyView extends WatchUi.WatchFace {
         var boxX = 0;
         var boxY = screenHalfHeight - timeHeight - TIME_YPAD - 4;
         var boxHeight = (timeHeight * 2) + (TIME_YPAD * 2) + 8;
-        var boxWidth = TIME_XOFF + timeWidth + 12;
+        var boxWidth = TIME_XOFF + timeWidth + 14;
         var boxBottomY = boxY + boxHeight - BAR_WIDTH;
         
         // Find midpoint of time digits - our reference point
@@ -500,7 +447,7 @@ class PipBoyView extends WatchUi.WatchFace {
         var minMidpointX = timeLeftX + (timeWidth / 2);
         
         // Position day and date relative to midpoint
-        var dayBoxXOffset = 12; // Push right so day doesn't get cut off by display
+        var dayBoxXOffset = 10; // Push right so day doesn't get cut off by display
         var dayBoxHPadding = 1;
         var dayBoxWidth = dayDims[0] + (dayBoxHPadding * 2);
         var dateHPadding = 4; // More padding to make it roughly same width as day
@@ -521,7 +468,7 @@ class PipBoyView extends WatchUi.WatchFace {
         var alarmIconText = "R";
         var alarmIconDims = dc.getTextDimensions(alarmIconText, ICON_FONT);
         var alarmX = ampmX;
-        var alarmY = ampmBottomY + ampmBottomDims[1] + 16; // Position below AM/PM
+        var alarmY = ampmBottomY + ampmBottomDims[1] + 18; // Position below AM/PM
         var alarmBreakTop = alarmY - 2;
         var alarmBreakBottom = alarmY + alarmIconDims[1] + 4;
         
@@ -615,143 +562,6 @@ class PipBoyView extends WatchUi.WatchFace {
             dc.drawText(secX, boxBottomY, DATE_FONT, secStr, 
                         Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
-    }
-
-    // Draw the status boxes
-    function drawStatus(dc as Dc) as Void {
-        // Box dimensions and placement
-        var boxSize = 18;
-        var rightMargin = 9;
-        var padding = 6;
-        var startX = screenWidth - boxSize - rightMargin;
-        
-        // Calculate vertical positioning to center around screenHalfHeight
-        var totalHeight = (boxSize * 3) + (padding * 2);
-        var startY = screenHalfHeight - (totalHeight / 2) - 2;
-        
-        // Icons for each status box
-        var messageIcon = "k";
-        // var alarmIcon = "R";
-        var phoneIcon = "V";
-        
-        // Draw message status box
-        dc.setColor(hasMessages ? THEME_BRIGHT : THEME_MID, Graphics.COLOR_TRANSPARENT);
-        dc.fillRectangle(startX, startY, boxSize, boxSize);
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(
-            startX + (boxSize / 2),
-            startY + (boxSize / 2),
-            ICON_FONT,
-            messageIcon,
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-        );
-        
-        // Draw alarm status box
-        // dc.setColor(hasAlarms ? THEME_BRIGHT : THEME_MID, Graphics.COLOR_TRANSPARENT);
-        // dc.fillRectangle(startX, startY + boxSize + padding, boxSize, boxSize);
-        // dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
-        // dc.drawText(
-        //     startX + (boxSize / 2),
-        //     startY + boxSize + padding + (boxSize / 2) - 1,
-        //     ICON_FONT,
-        //     alarmIcon,
-        //     Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-        // );
-        
-        // Draw phone connection status box
-        dc.setColor(hasConnection ? THEME_BRIGHT : THEME_MID, Graphics.COLOR_TRANSPARENT);
-        dc.fillRectangle(startX, startY + (boxSize + padding) * 2, boxSize, boxSize);
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(
-            startX + (boxSize / 2),
-            startY + (boxSize + padding) * 2 + (boxSize / 2) - 1,
-            ICON_FONT,
-            phoneIcon,
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-        );
-    }
-
-    function drawVitals(dc as Dc) as Void {
-        var w = (screenWidth * 0.35).toNumber();  // A little less than half the screen
-        var h = 17;
-        var pad = 7;
-        var x = screenHalfWidth + 2;
-        var y = 71;
-        
-        // Draw each vital stat with its progress bar
-        drawVitalBar(dc, x, y, "o", activeMinutes, activeMinutesGoal, w, h);
-        y += h + pad;
-        drawVitalBar(dc, x, y, "X", caloriesBurned, caloriesBurnedGoal, w, h);
-        y += h + pad;
-        drawVitalBar(dc, x, y, "Q", steps, stepGoal, w, h);
-        y += h + pad;
-        drawVitalBar(dc, x, y, "A", bodyBattery, 100, w, h);
-        y += h + pad;
-        drawVitalBar(dc, x, y, "Y", stress, 100, w, h);
-    }
-
-    // Helper function to draw a single vital stat bar
-    function drawVitalBar(dc as Dc, x as Number, y as Number, icon as String, 
-                          value as Number, goal as Number, width as Number, 
-                          height as Number) as Void {
-        var padding = 3;
-        var iconWidth = dc.getTextDimensions("W", ICON_FONT)[0] + (padding * 2);
-        var valueWidth = 40;  // Space for the numeric value
-        var progressWidth = width - iconWidth - valueWidth;
-        
-        // Draw main background rectangle
-        dc.setColor(THEME_MID, Graphics.COLOR_TRANSPARENT);
-        dc.fillRectangle(x, y, width, height);
-        
-        // Calculate progress percentage (handle division by zero)
-        var percentage;
-        if (value != null && goal != null) {
-            percentage = (goal > 0) ? (value.toFloat() / goal.toFloat()) : 0;
-            percentage = percentage > 1.0 ? 1.0 : percentage;  // Cap at 100%
-        } else {
-            percentage = 0;
-        }
-        
-        // Draw filled portion of progress bar
-        dc.setColor(THEME_BRIGHT, THEME_BRIGHT);
-        dc.fillRectangle(
-            x + iconWidth,
-            y + padding,
-            (progressWidth * percentage).toNumber(),
-            height - (padding * 2)
-        );
-        
-        // Draw the four thin rectangles for the border (since we can't set line width)
-        dc.setColor(THEME_BRIGHT, THEME_BRIGHT);
-        // Top bar - with padding
-        dc.fillRectangle(x + iconWidth, y + padding, progressWidth, BAR_WIDTH);
-        // Bottom bar - with padding
-        dc.fillRectangle(x + iconWidth, y + height - padding - BAR_WIDTH, progressWidth, BAR_WIDTH);
-        // Left bar - with padding
-        dc.fillRectangle(x + iconWidth, y + padding, BAR_WIDTH, height - (padding * 2));
-        // Right bar - with padding
-        dc.fillRectangle(x + iconWidth + progressWidth - BAR_WIDTH, y + padding, BAR_WIDTH, height - (padding * 2));
-        
-        // Draw icon placeholder (use first character of name for now)
-        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(
-            x + (iconWidth / 2),
-            y + (height / 2),
-            ICON_FONT,
-            icon,
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-        );
-        
-        // Draw value text
-        var valueStr = value.toString();
-        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(
-            x + width - padding,
-            y + (height / 2),
-            Graphics.FONT_XTINY,
-            valueStr,
-            Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
-        );
     }
 
     // Draw text with a filled rectangular background
