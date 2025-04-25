@@ -333,6 +333,7 @@ class PipBoyView extends WatchUi.WatchFace {
         var arcStartDegree = 127.5; // Left side (112 is start of motion)
         var arcEndDegree = 53;   // Right side (68 is end of motion)
 
+        var tabPadding = 6;
         var sunriseText = "N X:XX";  // Placeholder text
 
         // Get the current time
@@ -407,7 +408,6 @@ class PipBoyView extends WatchUi.WatchFace {
         var sunriseTextY = arcLeftmostY;
         
         // Calculate tab points
-        var tabPadding = 4;
         var tabLeftX = sunriseTextX - (sunriseTextWidth/2) - tabPadding;
         var tabRightX = sunriseTextX + (sunriseTextWidth/2) + tabPadding;
         var tabBottomY = sunriseTextY + sunriseTextHeight / 2;
@@ -426,7 +426,7 @@ class PipBoyView extends WatchUi.WatchFace {
         
         // Right vertical up
         dc.drawLine(tabRightX, tabBottomY, tabRightX, arcRightmostY);
-        
+
         // Right segment of line
         dc.drawLine(tabRightX, arcRightmostY, arcRightmostX, arcRightmostY);
 
@@ -440,6 +440,57 @@ class PipBoyView extends WatchUi.WatchFace {
         dc.drawText(xPos, yPos, CELESTIAL_ICONS, iconText, Graphics.TEXT_JUSTIFY_CENTER);
     }
     
+    // Draw a stat bar with progress indicator
+    function drawStatBar(dc as Dc, x as Number, y as Number, label as String, value as String, 
+                        percentage as Float, length as Number) as Void {
+        // Constants
+        var leftBarHeight = 10;      // Height of left vertical line
+        var triangleHeight = 6;     // Height of the triangle
+        var triangleWidth = 6;      // Width of the triangle
+        var valueGap = 10;          // Gap between value and bar assembly
+        
+        // Get text dimensions
+        var labelHeight = dc.getFontHeight(DAY_FONT);
+        var valueWidth = dc.getTextWidthInPixels(value, DATE_FONT);
+        
+        // Position calculations
+        var labelX = x + valueWidth + valueGap;
+        var barX = labelX;
+        var labelY = y;
+        var barY = labelY + labelHeight;
+        var valueY = labelY + (labelHeight / 2); // Center value vertically with label
+        
+        // Set color
+        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
+        
+        // Draw label
+        dc.drawText(labelX, labelY, DAY_FONT, label, Graphics.TEXT_JUSTIFY_LEFT);
+        
+        // Draw horizontal line
+        dc.fillRectangle(barX, barY, length, 2);
+        
+        // Draw left vertical line
+        dc.fillRectangle(barX, barY, 2, leftBarHeight);
+        
+        // Draw right triangle (bottom half of arrow pointing right)
+        var rightX = barX + length;
+        var points = [
+            [rightX, barY],
+            [rightX + triangleWidth, barY],
+            [rightX, barY + triangleHeight]
+        ];
+        dc.fillPolygon(points);
+        
+        // Draw progress fill
+        var fillWidth = (length * percentage).toNumber();
+        if (fillWidth > 0) {
+            dc.fillRectangle(barX + 3, barY + 3, fillWidth, leftBarHeight - 3);
+        }
+        
+        // Draw value (right justified)
+        dc.drawText(labelX - valueGap/2, valueY, DATE_FONT, value, Graphics.TEXT_JUSTIFY_RIGHT);
+    }
+
     // Draw Vault Boy 
     function drawVaultBoy(dc as Dc) as Void {
         // Load the Vault Boy bitmap from resources
