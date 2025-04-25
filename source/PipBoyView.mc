@@ -329,8 +329,11 @@ class PipBoyView extends WatchUi.WatchFace {
         var topPadding = 2;       // Minimum distance from the top of the screen
 
         // Configuration for the actual drawn arc
-        var arcStartDegree = 112; // Left side
-        var arcEndDegree = 68;   // Right side
+        // Use .5 if there are rounding issues between arc and horizontal line
+        var arcStartDegree = 127.5; // Left side (112 is start of motion)
+        var arcEndDegree = 53;   // Right side (68 is end of motion)
+
+        var sunriseText = "N X:XX";  // Placeholder text
 
         // Get the current time
         var hour = currentTime.hour;
@@ -367,8 +370,16 @@ class PipBoyView extends WatchUi.WatchFace {
         var arcCenterX = screenHalfWidth;
         var arcCenterY = screenHalfHeight;
         var iconHeight = dc.getFontHeight(ICON_FONT);
-        var arcRadius = screenHalfHeight - topPadding - iconHeight / 2 - 3; // Radius of the arc
-                
+        var arcRadius = screenHalfHeight - topPadding - iconHeight / 2 - 2; // Radius of the arc
+
+        // Calculate the actual leftmost and rightmost points of the arc
+        var arcStartRad = Math.toRadians(arcStartDegree);
+        var arcEndRad = Math.toRadians(arcEndDegree);
+        var arcLeftmostX = arcCenterX + arcRadius * Math.cos(arcStartRad);
+        var arcLeftmostY = arcCenterY - arcRadius * Math.sin(arcStartRad);
+        var arcRightmostX = arcCenterX + arcRadius * Math.cos(arcEndRad);
+        var arcRightmostY = arcCenterY - arcRadius * Math.sin(arcEndRad);
+
         // Get icon dimensions to create gap in arc
         var iconText = "c";
         var iconWidth = dc.getTextWidthInPixels(iconText, CELESTIAL_ICONS);
@@ -381,21 +392,54 @@ class PipBoyView extends WatchUi.WatchFace {
         // Draw left segment of arc
         dc.setClip(0, 0, leftOfIcon, screenHeight);
         dc.drawArc(arcCenterX, arcCenterY, arcRadius, Graphics.ARC_CLOCKWISE, arcStartDegree, arcEndDegree);
-        
+
         // Draw right segment of arc
         dc.setClip(rightOfIcon, 0, screenWidth - rightOfIcon, screenHeight);
         dc.drawArc(arcCenterX, arcCenterY, arcRadius, Graphics.ARC_CLOCKWISE, arcStartDegree, arcEndDegree);
         
         // Clear the clip
         dc.clearClip();
+
+        // Calculate text dimensions and position for the sunriseText
+        var sunriseTextWidth = dc.getTextWidthInPixels(sunriseText, DAY_FONT);
+        var sunriseTextHeight = dc.getFontHeight(DAY_FONT);
+        var sunriseTextX = screenHalfWidth;
+        var sunriseTextY = arcLeftmostY;
         
+        // Calculate tab points
+        var tabPadding = 4;
+        var tabLeftX = sunriseTextX - (sunriseTextWidth/2) - tabPadding;
+        var tabRightX = sunriseTextX + (sunriseTextWidth/2) + tabPadding;
+        var tabBottomY = sunriseTextY + sunriseTextHeight / 2;
+        
+        // Draw the line with detour under text (in multiple segments)
+        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
+        
+        // Left segment of line
+        dc.drawLine(arcLeftmostX, arcLeftmostY, tabLeftX, arcLeftmostY);
+        
+        // Left vertical down
+        dc.drawLine(tabLeftX, arcLeftmostY, tabLeftX, tabBottomY);
+        
+        // Horizontal under text
+        dc.drawLine(tabLeftX, tabBottomY, tabRightX, tabBottomY);
+        
+        // Right vertical up
+        dc.drawLine(tabRightX, tabBottomY, tabRightX, arcRightmostY);
+        
+        // Right segment of line
+        dc.drawLine(tabRightX, arcRightmostY, arcRightmostX, arcRightmostY);
+
+        // Draw the sunrise text
+        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(sunriseTextX, sunriseTextY, DAY_FONT, sunriseText, 
+                    Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+
         // Draw the celestial icon
         dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
         dc.drawText(xPos, yPos, CELESTIAL_ICONS, iconText, Graphics.TEXT_JUSTIFY_CENTER);
     }
-
-    }
-
+    
     // Draw Vault Boy 
     function drawVaultBoy(dc as Dc) as Void {
         // Load the Vault Boy bitmap from resources
