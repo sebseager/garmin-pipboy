@@ -13,12 +13,10 @@ class PipBoyView extends WatchUi.WatchFace {
     // =================================================================================
 
     // Colors
-    const NO_COLOR = Graphics.COLOR_TRANSPARENT;
-    const BG_COLOR = Graphics.COLOR_BLACK;
+    const THEME_DARK = 0x002222;
+    const THEME_MID = 0x003355;
+    const THEME_BRIGHT = 0x00FFFF;
     const CRT_COLOR = 0x003355;
-    const INACTIVE_COLOR = 0x003333;
-    const FG_COLOR = 0x00FFFF;
-    const BAD_NUM = 999999;
 
     // Fonts
     const TEMP_FONT = WatchUi.loadResource(Rez.Fonts.monofonto24);
@@ -26,10 +24,11 @@ class PipBoyView extends WatchUi.WatchFace {
     const DAY_FONT = WatchUi.loadResource(Rez.Fonts.monofonto16);
     const DATE_FONT = WatchUi.loadResource(Rez.Fonts.monofonto20);
     const ICON_FONT = WatchUi.loadResource(Rez.Fonts.icons24);
+    const CELESTIAL_ICONS = WatchUi.loadResource(Rez.Fonts.celestial);
 
     // Measurements
     const CRT_FREQ = 3;
-    const TEMP_YOFF = 50;
+    const TEMP_YOFF = 52;
     const TEMP_BARLENGTH = 110;
     const BAR_WIDTH = 2;
     const TIME_XOFF = 50;
@@ -39,6 +38,9 @@ class PipBoyView extends WatchUi.WatchFace {
     const STATUS_YOFF = 20;
     const TABS_YOFF = 60;
     const POS_YOFF = 32;
+
+    // Other
+    const BAD_NUM = 999999;
 
     // =================================================================================
     // Variables
@@ -144,18 +146,18 @@ class PipBoyView extends WatchUi.WatchFace {
         if (!aboutToSleep && allVitalsValid) {
             drawVitals(dc);
         } else {
-            // Draw the fallout dude!
+            drawVaultBoy(dc);
         }
 
         // Set a black background
-        dc.setColor(NO_COLOR, BG_COLOR);
+        dc.setColor(Graphics.COLOR_TRANSPARENT, Graphics.COLOR_BLACK);
 
         // // Update the view
         // var view = View.findDrawableById("TimeLabel") as Text;
         // view.setColor(Application.Properties.getValue("ForegroundColor") as Number);
         // view.setText(timeString);
 
-        // Call the parent onUpdate function to redraw the layout
+        // // Call the parent onUpdate function to redraw the layout
         // View.onUpdate(dc);
     }
 
@@ -318,6 +320,30 @@ class PipBoyView extends WatchUi.WatchFace {
     // Layout Helpers - only callable from onUpdate
     // =================================================================================
 
+    // Draw Vault Boy 
+    function drawVaultBoy(dc as Dc) as Void {
+        // Load the Vault Boy bitmap from resources
+        var vaultBoyBitmap = WatchUi.loadResource(Rez.Drawables.vaultboy);
+        
+        // Calculate the area where vitals would be drawn
+        var vitalsX = screenHalfWidth + 2;
+        var vitalsY = 71;
+        var vitalsWidth = (screenWidth * 0.35).toNumber();
+        var vitalsHeight = 5 * (17 + 7) - 7;  // 5 bars of height 17 with padding 7 between them
+        
+        // Get bitmap dimensions for centering
+        var bitmapWidth = vaultBoyBitmap.getWidth();
+        var bitmapHeight = vaultBoyBitmap.getHeight();
+        
+        // Center the bitmap within the vitals area
+        var x = vitalsX + (vitalsWidth - bitmapWidth) / 2;
+        var y = vitalsY + (vitalsHeight - bitmapHeight) / 2;
+        
+        // Draw the bitmap with the same color as other UI elements
+        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
+        dc.drawBitmap(x, y, vaultBoyBitmap);
+    }
+
     // Get screen dimensions
     function measureScreen(dc as Dc) as Void {
         screenWidth = dc.getWidth();
@@ -328,7 +354,7 @@ class PipBoyView extends WatchUi.WatchFace {
 
     // Draw the CRT effect
     function drawCRT(dc as Dc, freq as Number) as Void {
-        dc.setColor(CRT_COLOR, NO_COLOR);
+        dc.setColor(CRT_COLOR, Graphics.COLOR_TRANSPARENT);
         for (var i = 0; i < screenHeight; i += freq) {
             dc.drawLine(0, i, screenWidth, i);
         }
@@ -350,13 +376,17 @@ class PipBoyView extends WatchUi.WatchFace {
         // Determine which icon to show
         var iconChar;
         if (decimalHour >= 4 && decimalHour < 6) {
-            iconChar = "b"; // sunrise
-        } else if (decimalHour >= 6 && decimalHour < 17) {
-            iconChar = "q"; // sun
+            iconChar = "a"; // sunrise
+        } else if (decimalHour >= 6 && decimalHour < 9) {
+            iconChar = "b"; // half sun
+        } else if (decimalHour >= 9 && decimalHour < 15) {
+            iconChar = "c"; // sun
+        } else if (decimalHour >= 15 && decimalHour < 18) {
+            iconChar = "b"; // half sun
         } else if (decimalHour >= 18 && decimalHour < 20) {
-            iconChar = "b"; // sunset
+            iconChar = "a"; // sunset
         } else {
-            iconChar = "c"; // moon
+            iconChar = "d"; // moon
         }
         
         // Calculate necessary offsets
@@ -415,11 +445,11 @@ class PipBoyView extends WatchUi.WatchFace {
         }
         
         // Draw the icon
-        dc.setColor(FG_COLOR, NO_COLOR);
+        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
             iconX,
             iconY,
-            ICON_FONT,
+            CELESTIAL_ICONS,
             iconChar,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
         );
@@ -438,7 +468,7 @@ class PipBoyView extends WatchUi.WatchFace {
         var strHeight = dc.getFontHeight(TIME_FONT);
 
         // Draw hours and minutes
-        dc.setColor(FG_COLOR, NO_COLOR);
+        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
             TIME_XOFF,
             screenHalfHeight - strHeight - TIME_YPAD,
@@ -490,7 +520,7 @@ class PipBoyView extends WatchUi.WatchFace {
         );
         
         // Draw numerical date
-        dc.setColor(FG_COLOR, NO_COLOR);
+        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
             TIME_XOFF - DATE_XPAD,
             screenHalfHeight + DATE_YPAD + monthDims[1] + 2,
@@ -500,14 +530,16 @@ class PipBoyView extends WatchUi.WatchFace {
         );
 
         // Draw seconds above the day
-        dc.setColor(currentTime.sec % 2 ? FG_COLOR : FG_COLOR, NO_COLOR);
-        dc.drawText(
-            TIME_XOFF - DATE_XPAD,
-            screenHalfHeight - DATE_YPAD - dayDims[1] - secDims[1] - 14,
-            DATE_FONT,
-            secStr,
-            Graphics.TEXT_JUSTIFY_RIGHT
-        );
+        if (!aboutToSleep) {
+            dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(
+                TIME_XOFF - DATE_XPAD,
+                screenHalfHeight - DATE_YPAD - dayDims[1] - secDims[1] - 14,
+                DATE_FONT,
+                secStr,
+                Graphics.TEXT_JUSTIFY_RIGHT
+            );
+        }
     }
 
     // Draw the status boxes
@@ -528,9 +560,9 @@ class PipBoyView extends WatchUi.WatchFace {
         var phoneIcon = "V";
         
         // Draw message status box
-        dc.setColor(hasMessages ? FG_COLOR : INACTIVE_COLOR, NO_COLOR);
+        dc.setColor(hasMessages ? THEME_BRIGHT : THEME_MID, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(startX, startY, boxSize, boxSize);
-        dc.setColor(BG_COLOR, NO_COLOR);
+        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
             startX + (boxSize / 2),
             startY + (boxSize / 2),
@@ -540,9 +572,9 @@ class PipBoyView extends WatchUi.WatchFace {
         );
         
         // Draw alarm status box
-        dc.setColor(hasAlarms ? FG_COLOR : INACTIVE_COLOR, NO_COLOR);
+        dc.setColor(hasAlarms ? THEME_BRIGHT : THEME_MID, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(startX, startY + boxSize + padding, boxSize, boxSize);
-        dc.setColor(BG_COLOR, NO_COLOR);
+        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
             startX + (boxSize / 2),
             startY + boxSize + padding + (boxSize / 2) - 1,
@@ -552,9 +584,9 @@ class PipBoyView extends WatchUi.WatchFace {
         );
         
         // Draw phone connection status box
-        dc.setColor(hasConnection ? FG_COLOR : INACTIVE_COLOR, NO_COLOR);
+        dc.setColor(hasConnection ? THEME_BRIGHT : THEME_MID, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(startX, startY + (boxSize + padding) * 2, boxSize, boxSize);
-        dc.setColor(BG_COLOR, NO_COLOR);
+        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
             startX + (boxSize / 2),
             startY + (boxSize + padding) * 2 + (boxSize / 2) - 1,
@@ -593,7 +625,7 @@ class PipBoyView extends WatchUi.WatchFace {
         var progressWidth = width - iconWidth - valueWidth;
         
         // Draw main background rectangle
-        dc.setColor(INACTIVE_COLOR, NO_COLOR);
+        dc.setColor(THEME_MID, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(x, y, width, height);
         
         // Calculate progress percentage (handle division by zero)
@@ -606,7 +638,7 @@ class PipBoyView extends WatchUi.WatchFace {
         }
         
         // Draw filled portion of progress bar
-        dc.setColor(FG_COLOR, FG_COLOR);
+        dc.setColor(THEME_BRIGHT, THEME_BRIGHT);
         dc.fillRectangle(
             x + iconWidth,
             y + padding,
@@ -615,7 +647,7 @@ class PipBoyView extends WatchUi.WatchFace {
         );
         
         // Draw the four thin rectangles for the border (since we can't set line width)
-        dc.setColor(FG_COLOR, FG_COLOR);
+        dc.setColor(THEME_BRIGHT, THEME_BRIGHT);
         // Top bar - with padding
         dc.fillRectangle(x + iconWidth, y + padding, progressWidth, BAR_WIDTH);
         // Bottom bar - with padding
@@ -626,7 +658,7 @@ class PipBoyView extends WatchUi.WatchFace {
         dc.fillRectangle(x + iconWidth + progressWidth - BAR_WIDTH, y + padding, BAR_WIDTH, height - (padding * 2));
         
         // Draw icon placeholder (use first character of name for now)
-        dc.setColor(FG_COLOR, NO_COLOR);
+        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
             x + (iconWidth / 2),
             y + (height / 2),
@@ -637,7 +669,7 @@ class PipBoyView extends WatchUi.WatchFace {
         
         // Draw value text
         var valueStr = value.toString();
-        dc.setColor(FG_COLOR, NO_COLOR);
+        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
             x + width - padding,
             y + (height / 2),
@@ -677,14 +709,14 @@ class PipBoyView extends WatchUi.WatchFace {
         }
         
         // Draw everything
-        dc.setColor(FG_COLOR, FG_COLOR);
+        dc.setColor(THEME_BRIGHT, THEME_BRIGHT);
         if (fill) {
             dc.fillRectangle(rx, ry, textWidth + (hpad * 2), textHeight + (vpad * 2));
-            dc.setColor(BG_COLOR, NO_COLOR);
+            dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
             dc.drawText(x, y, font, text, just);
         } else {
             dc.drawRectangle(rx, ry, textWidth + (hpad * 2), textHeight + (vpad * 2));
-            dc.setColor(FG_COLOR, NO_COLOR);
+            dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
             dc.drawText(x, y, font, text, just);
         }
     }
@@ -712,7 +744,7 @@ class PipBoyView extends WatchUi.WatchFace {
         var w3 = dims3[0];
         
         // Set drawing color
-        dc.setColor(FG_COLOR, FG_COLOR);
+        dc.setColor(THEME_BRIGHT, THEME_BRIGHT);
         
         // Draw the tab line in segments using fillRectangle for thickness
         // Segment 1: left edge to first tab
@@ -734,7 +766,7 @@ class PipBoyView extends WatchUi.WatchFace {
         dc.fillRectangle(tx3 + w3/2 + hpad, ty - lw/2, screenWidth - (tx3 + w3/2 + hpad), lw);
         
         // Draw the text for each tab
-        dc.setColor(FG_COLOR, NO_COLOR);
+        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
             tx1,
             ty - 2,
@@ -788,7 +820,7 @@ class PipBoyView extends WatchUi.WatchFace {
         var w3 = dims3[0];
         
         // Set drawing color
-        dc.setColor(FG_COLOR, FG_COLOR);
+        dc.setColor(THEME_BRIGHT, THEME_BRIGHT);
         
         // Draw the line segments with breaks for text
         
@@ -811,7 +843,7 @@ class PipBoyView extends WatchUi.WatchFace {
         dc.fillRectangle(barEndX - lw, ty - lw/2, lw, 10);
         
         // Draw the text for each label
-        dc.setColor(FG_COLOR, NO_COLOR);
+        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
             tx1,
             ty - 2,
