@@ -31,7 +31,8 @@ class PipBoyView extends WatchUi.WatchFace {
     const TEMP_YOFF = 52;
     const TEMP_BARLENGTH = 110;
     const BAR_WIDTH = 2;
-    const TIME_XOFF = 50;
+    const TIME_XOFF = 24;
+    const TIME_YOFF = 8;
     const TIME_YPAD = -9; // Controls vertical spacing of hours and minutes
     const DATE_XPAD = 6; // Push date away from time
     const DATE_YPAD = 2; // Push date components away from center line
@@ -123,31 +124,32 @@ class PipBoyView extends WatchUi.WatchFace {
         drawCRT(dc, CRT_FREQ);
         drawCelestialIcon(dc);
         drawTime(dc);
-        drawBottomTabs(dc, "HRS", "MAP", "WTR", 8);
-        drawStatus(dc);
 
-        // Only draw top bar if we have weather data
-        if (currentTemp < BAD_NUM && currentPrecip < BAD_NUM && currentHumidity < BAD_NUM) {
-            var tempStr = Lang.format("$1$°", [currentTemp.toNumber()]);
-            var precipStr = Lang.format("$1$%", [currentPrecip.toNumber()]);
-            var humidityStr = Lang.format("$1$%", [currentHumidity.toNumber()]);
-            drawTopBar(dc, precipStr, tempStr, humidityStr, 4);
-        }
+        // drawBottomTabs(dc, "HRS", "MAP", "WTR", 8);
+        // drawStatus(dc);
 
-        // Draw tab contents
-        if (selectedTab == 0) {
-            // TODO
-        } else if (selectedTab == 1) {
-            drawLatLong(dc);
-        } else if (selectedTab == 2) {
-            // TODO
-        }
+        // // Only draw top bar if we have weather data
+        // if (currentTemp < BAD_NUM && currentPrecip < BAD_NUM && currentHumidity < BAD_NUM) {
+        //     var tempStr = Lang.format("$1$°", [currentTemp.toNumber()]);
+        //     var precipStr = Lang.format("$1$%", [currentPrecip.toNumber()]);
+        //     var humidityStr = Lang.format("$1$%", [currentHumidity.toNumber()]);
+        //     drawTopBar(dc, precipStr, tempStr, humidityStr, 4);
+        // }
 
-        if (!aboutToSleep && allVitalsValid) {
-            drawVitals(dc);
-        } else {
-            drawVaultBoy(dc);
-        }
+        // // Draw tab contents
+        // if (selectedTab == 0) {
+        //     // TODO
+        // } else if (selectedTab == 1) {
+        //     drawLatLong(dc);
+        // } else if (selectedTab == 2) {
+        //     // TODO
+        // }
+
+        // if (!aboutToSleep && allVitalsValid) {
+        //     drawVitals(dc);
+        // } else {
+        //     drawVaultBoy(dc);
+        // }
 
         // Set a black background
         dc.setColor(Graphics.COLOR_TRANSPARENT, Graphics.COLOR_BLACK);
@@ -466,79 +468,108 @@ class PipBoyView extends WatchUi.WatchFace {
         var hourStr = Lang.format("$1$", [hour.format("%02d")]);
         var minStr = Lang.format("$1$", [min.format("%02d")]);
         var strHeight = dc.getFontHeight(TIME_FONT);
+        var hourDims = dc.getTextDimensions(hourStr, TIME_FONT);
+        var minDims = dc.getTextDimensions(minStr, TIME_FONT);
+        var timeWidth = hourDims[0] > minDims[0] ? hourDims[0] : minDims[0]; // Use the wider of the two
+
+        // Format date components needed early for box calculation
+        var dateStr = Lang.format("$1$", [currentDate.day.format("%02d")]);
+        var dayStr = Lang.format("$1$", [currentDate.day_of_week.toUpper()]);
+        var dayDims = dc.getTextDimensions(dayStr, DAY_FONT);
+        var dateDims = dc.getTextDimensions(dateStr, DATE_FONT);
+
+        // Calculate the minutes midpoint - this will be our reference point
+        var minMidpointX = TIME_XOFF + (minDims[0] / 2);
+        
+        // Calculate box position and dimensions
+        var boxX = 0; // Start slightly left of text
+        var boxY = screenHalfHeight - strHeight - TIME_YPAD - 4; // Start above hours text
+        var boxHeight = (strHeight * 2) + (TIME_YPAD * 2) + 8; // Height covers both lines + padding
+        var boxWidth = TIME_XOFF + timeWidth + 14; // Width based on widest time string + padding
+        var boxBottomY = boxY + boxHeight - BAR_WIDTH;
+
+        // Position day and date elements relative to minutes midpoint
+        // Day is to the left of midpoint with its right edge at midpoint
+        var dayBoxHPadding = 2;
+        var dayBoxVPadding = 0;
+        var dayBoxWidth = dayDims[0] + (dayBoxHPadding * 2);
+        
+        // Date should be right next to the day with no spacing between
+        var dateHPadding = 8;
+        var dateWidth = dateDims[0] + (dateHPadding * 2);
+        
+        // Position elements while preserving the midpoint alignment
+        var totalElementWidth = dayBoxWidth + dateWidth;
+        var dayBoxX = minMidpointX - (totalElementWidth / 2) + (dayBoxWidth / 2);
+        var dateX = dayBoxX + (dayBoxWidth / 2) + (dateWidth / 2); // Position date right next to day
+
+        // Format seconds string for bottom of box
+        var secStr = Lang.format("$1$", [currentTime.sec.format("%02d")]);
+        var secDims = dc.getTextDimensions(secStr, DATE_FONT);
+        var secHPadding = 4; // Add padding around seconds text
+        
+        // Align seconds vertically with minutes
+        var secX = minMidpointX; // Center seconds at minutes midpoint
+        var secY = boxBottomY; // Position on bottom line
+
+        // Draw the box lines
+        dc.setColor(THEME_BRIGHT, THEME_BRIGHT);
+        
+        // Top line - draw in segments
+        // Segment 1: Left edge to left edge of day box
+        dc.fillRectangle(boxX, boxY, dayBoxX - (dayBoxWidth / 2) - boxX, BAR_WIDTH);
+        // Segment 2: After date text to right edge
+        dc.fillRectangle(dateX + (dateWidth / 2), boxY, (boxX + boxWidth) - (dateX + (dateWidth / 2)), BAR_WIDTH);
+        
+        // Right line
+        dc.fillRectangle(boxX + boxWidth - BAR_WIDTH, boxY, BAR_WIDTH, boxHeight);
+        
+        // Bottom line - draw in segments for seconds
+        if (!aboutToSleep) {
+            // Left segment
+            dc.fillRectangle(boxX, boxBottomY, secX - (secDims[0] / 2) - secHPadding - boxX, BAR_WIDTH);
+            // Right segment
+            dc.fillRectangle(secX + (secDims[0] / 2) + secHPadding, boxBottomY, (boxX + boxWidth) - (secX + (secDims[0] / 2) + secHPadding), BAR_WIDTH);
+        } else {
+            // Full bottom line if seconds are hidden
+            dc.fillRectangle(boxX, boxBottomY, boxWidth, BAR_WIDTH);
+        }
 
         // Draw hours and minutes
         dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(
-            TIME_XOFF,
-            screenHalfHeight - strHeight - TIME_YPAD,
-            TIME_FONT,
-            hourStr,
-            Graphics.TEXT_JUSTIFY_LEFT
-        );
-        dc.drawText(
-            TIME_XOFF,
-            screenHalfHeight + TIME_YPAD,
-            TIME_FONT,
-            minStr,
-            Graphics.TEXT_JUSTIFY_LEFT
-        );
+        dc.drawText(TIME_XOFF, screenHalfHeight - strHeight - TIME_YPAD, TIME_FONT, hourStr, Graphics.TEXT_JUSTIFY_LEFT);
+        dc.drawText(TIME_XOFF, screenHalfHeight + TIME_YPAD, TIME_FONT, minStr, Graphics.TEXT_JUSTIFY_LEFT);
 
-        // Format date
-        var dateStr = Lang.format("$1$", [currentDate.day.format("%02d")]);
-        var secStr = Lang.format(":$1$", [currentTime.sec.format("%02d")]);
-        var dayStr = Lang.format("$1$", [currentDate.day_of_week.toUpper()]);
-        var monthStr = Lang.format("$1$", [currentDate.month.toUpper()]);
-        var secDims = dc.getTextDimensions(secStr, DAY_FONT);
-        var dayDims = dc.getTextDimensions(dayStr, DAY_FONT);
-        var monthDims = dc.getTextDimensions(monthStr, DAY_FONT);
-
-        // Draw day of week with background rectangle
+        // Draw day of week box on top edge (filled)
         drawInvertedText(
             dc,
-            TIME_XOFF - DATE_XPAD - 2,
-            screenHalfHeight - DATE_YPAD  - dayDims[1] - 6,
+            dayBoxX,
+            boxY,
             dayStr,
             DAY_FONT,
-            Graphics.TEXT_JUSTIFY_RIGHT,
-            4, // horizontal padding
-            0, // vertical padding
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER,
+            dayBoxHPadding,
+            dayBoxVPadding,
             true // fill
         );
 
-        // Draw month with background rectangle
+        // Draw numerical date with an outlined box (not filled)
         drawInvertedText(
             dc,
-            TIME_XOFF - DATE_XPAD - 2,
-            screenHalfHeight + DATE_YPAD,
-            monthStr,
-            DAY_FONT,
-            Graphics.TEXT_JUSTIFY_RIGHT,
-            4, // horizontal padding
-            0, // vertical padding
-            true // fill
-        );
-        
-        // Draw numerical date
-        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(
-            TIME_XOFF - DATE_XPAD,
-            screenHalfHeight + DATE_YPAD + monthDims[1] + 2,
-            DATE_FONT,
+            dateX,
+            boxY,
             dateStr,
-            Graphics.TEXT_JUSTIFY_RIGHT
+            DAY_FONT,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER,
+            dateHPadding,
+            0, // No vertical padding
+            false // Don't fill, just outline
         );
 
-        // Draw seconds above the day
+        // Draw seconds on bottom line
         if (!aboutToSleep) {
             dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(
-                TIME_XOFF - DATE_XPAD,
-                screenHalfHeight - DATE_YPAD - dayDims[1] - secDims[1] - 14,
-                DATE_FONT,
-                secStr,
-                Graphics.TEXT_JUSTIFY_RIGHT
-            );
+            dc.drawText(secX, secY, DATE_FONT, secStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
     }
 
