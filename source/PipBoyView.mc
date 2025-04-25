@@ -31,7 +31,7 @@ class PipBoyView extends WatchUi.WatchFace {
     const TEMP_YOFF = 52;
     const TEMP_BARLENGTH = 110;
     const BAR_WIDTH = 2;
-    const TIME_XOFF = 24;
+    const TIME_XOFF = 16;
     const TIME_YOFF = -2;
     const TIME_YPAD = -9; // Controls vertical spacing of hours and minutes
     const STATUS_YOFF = 20;
@@ -460,6 +460,7 @@ class PipBoyView extends WatchUi.WatchFace {
         // Format time
         var hour = currentTime.hour;
         var min = currentTime.min;
+        var isPM = hour >= 12; // Determine AM/PM
         if (!System.getDeviceSettings().is24Hour) {
             hour = hour > 12 ? hour - 12 : hour;
             hour = hour == 0 ? 12 : hour; // Handle midnight correctly
@@ -478,11 +479,16 @@ class PipBoyView extends WatchUi.WatchFace {
         var dayDims = dc.getTextDimensions(dayStr, DAY_FONT);
         var dateDims = dc.getTextDimensions(dateStr, DAY_FONT);
         
+        // AM/PM components
+        var ampmTop = isPM ? "P" : "A";
+        var ampmBottom = "M";
+        var ampmBottomDims = dc.getTextDimensions(ampmBottom, DATE_FONT);
+        
         // Box positioning
         var boxX = 0;
         var boxY = screenHalfHeight - timeHeight - TIME_YPAD - 4;
         var boxHeight = (timeHeight * 2) + (TIME_YPAD * 2) + 8;
-        var boxWidth = TIME_XOFF + timeWidth + 16;
+        var boxWidth = TIME_XOFF + timeWidth + 12;
         var boxBottomY = boxY + boxHeight - BAR_WIDTH;
         
         // Find midpoint of time digits - our reference point
@@ -490,15 +496,22 @@ class PipBoyView extends WatchUi.WatchFace {
         var minMidpointX = timeLeftX + (timeWidth / 2);
         
         // Position day and date relative to midpoint
+        var dayBoxXOffset = 12; // Push right so day doesn't get cut off by display
         var dayBoxHPadding = 1;
         var dayBoxWidth = dayDims[0] + (dayBoxHPadding * 2);
-        var dateHPadding = 6; // More padding to make it roughly same width as day
+        var dateHPadding = 4; // More padding to make it roughly same width as day
         var dateWidth = dateDims[0] + (dateHPadding * 2);
         
         // Position elements so their combined center aligns with time midpoint
         var totalWidth = dayBoxWidth + dateWidth;
-        var dayBoxX = minMidpointX - (totalWidth / 2) + (dayBoxWidth / 2);
-        var dateX = dayBoxX + (dayBoxWidth / 2) + (dateWidth / 2);
+        var dayX = minMidpointX - (totalWidth / 2) + (dayBoxWidth / 2) + dayBoxXOffset;
+        var dateX = dayX + (dayBoxWidth / 2) + (dateWidth / 2);
+        
+        // AM/PM positioning
+        var ampmX = boxX + boxWidth - (BAR_WIDTH / 2);
+        var ampmCenterY = boxY + (boxHeight / 2);
+        var ampmTopY = ampmCenterY - ampmBottomDims[1];
+        var ampmBottomY = ampmCenterY - 2;
         
         // Format seconds for bottom display
         var secStr = Lang.format("$1$", [currentTime.sec.format("%02d")]);
@@ -510,13 +523,16 @@ class PipBoyView extends WatchUi.WatchFace {
         dc.setColor(THEME_BRIGHT, THEME_BRIGHT);
         
         // Top line - draw in segments with breaks for day and date
-        dc.fillRectangle(boxX, boxY, dayBoxX - (dayBoxWidth / 2) - boxX, BAR_WIDTH);
+        dc.fillRectangle(boxX, boxY, dayX - (dayBoxWidth / 2) - boxX, BAR_WIDTH);
         dc.fillRectangle(dateX + (dateWidth / 2), boxY, 
                         (boxX + boxWidth) - (dateX + (dateWidth / 2)), BAR_WIDTH);
         
-        // Vertical edges
-        // dc.fillRectangle(boxX, boxY, BAR_WIDTH, boxHeight);
-        dc.fillRectangle(boxX + boxWidth - BAR_WIDTH, boxY, BAR_WIDTH, boxHeight);
+        // Right vertical edge with break for AM/PM
+        var ampmBreakTop = ampmTopY - 1;
+        var ampmBreakBottom = ampmBottomY + ampmBottomDims[1] + 1;
+        dc.fillRectangle(boxX + boxWidth - BAR_WIDTH, boxY, BAR_WIDTH, ampmBreakTop - boxY);
+        dc.fillRectangle(boxX + boxWidth - BAR_WIDTH, ampmBreakBottom, 
+                        BAR_WIDTH, boxBottomY - ampmBreakBottom + BAR_WIDTH);
         
         // Bottom line with break for seconds
         if (!aboutToSleep) {
@@ -534,10 +550,15 @@ class PipBoyView extends WatchUi.WatchFace {
         dc.drawText(timeLeftX, boxY - TIME_YPAD + TIME_YOFF, TIME_FONT, hourStr, Graphics.TEXT_JUSTIFY_LEFT);
         dc.drawText(timeLeftX, boxY + timeHeight + TIME_YPAD + TIME_YOFF, TIME_FONT, minStr, Graphics.TEXT_JUSTIFY_LEFT);
         
+        // Draw AM/PM
+        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(ampmX, ampmTopY, DATE_FONT, ampmTop, Graphics.TEXT_JUSTIFY_CENTER);
+        dc.drawText(ampmX, ampmBottomY, DATE_FONT, ampmBottom, Graphics.TEXT_JUSTIFY_CENTER);
+        
         // Draw day in filled box
         drawInvertedText(
             dc,
-            dayBoxX,
+            dayX,
             boxY,
             dayStr,
             DAY_FONT,
@@ -582,7 +603,7 @@ class PipBoyView extends WatchUi.WatchFace {
         
         // Icons for each status box
         var messageIcon = "k";
-        var alarmIcon = "R";
+        // var alarmIcon = "R";
         var phoneIcon = "V";
         
         // Draw message status box
@@ -598,16 +619,16 @@ class PipBoyView extends WatchUi.WatchFace {
         );
         
         // Draw alarm status box
-        dc.setColor(hasAlarms ? THEME_BRIGHT : THEME_MID, Graphics.COLOR_TRANSPARENT);
-        dc.fillRectangle(startX, startY + boxSize + padding, boxSize, boxSize);
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(
-            startX + (boxSize / 2),
-            startY + boxSize + padding + (boxSize / 2) - 1,
-            ICON_FONT,
-            alarmIcon,
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-        );
+        // dc.setColor(hasAlarms ? THEME_BRIGHT : THEME_MID, Graphics.COLOR_TRANSPARENT);
+        // dc.fillRectangle(startX, startY + boxSize + padding, boxSize, boxSize);
+        // dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
+        // dc.drawText(
+        //     startX + (boxSize / 2),
+        //     startY + boxSize + padding + (boxSize / 2) - 1,
+        //     ICON_FONT,
+        //     alarmIcon,
+        //     Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+        // );
         
         // Draw phone connection status box
         dc.setColor(hasConnection ? THEME_BRIGHT : THEME_MID, Graphics.COLOR_TRANSPARENT);
