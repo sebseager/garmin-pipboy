@@ -32,10 +32,8 @@ class PipBoyView extends WatchUi.WatchFace {
     const TEMP_BARLENGTH = 110;
     const BAR_WIDTH = 2;
     const TIME_XOFF = 24;
-    const TIME_YOFF = 8;
+    const TIME_YOFF = -2;
     const TIME_YPAD = -9; // Controls vertical spacing of hours and minutes
-    const DATE_XPAD = 6; // Push date away from time
-    const DATE_YPAD = 2; // Push date components away from center line
     const STATUS_YOFF = 20;
     const TABS_YOFF = 60;
     const POS_YOFF = 32;
@@ -464,83 +462,79 @@ class PipBoyView extends WatchUi.WatchFace {
         var min = currentTime.min;
         if (!System.getDeviceSettings().is24Hour) {
             hour = hour > 12 ? hour - 12 : hour;
+            hour = hour == 0 ? 12 : hour; // Handle midnight correctly
         }
         var hourStr = Lang.format("$1$", [hour.format("%02d")]);
         var minStr = Lang.format("$1$", [min.format("%02d")]);
-        var strHeight = dc.getFontHeight(TIME_FONT);
-        var hourDims = dc.getTextDimensions(hourStr, TIME_FONT);
+        
+        // Get dimensions for time, day, and date
+        var timeHeight = dc.getFontHeight(TIME_FONT);
         var minDims = dc.getTextDimensions(minStr, TIME_FONT);
-        var timeWidth = hourDims[0] > minDims[0] ? hourDims[0] : minDims[0]; // Use the wider of the two
-
-        // Format date components needed early for box calculation
+        var timeWidth = minDims[0];
+        
+        // Format date components
+        var dayStr = currentDate.day_of_week.toUpper();
         var dateStr = Lang.format("$1$", [currentDate.day.format("%02d")]);
-        var dayStr = Lang.format("$1$", [currentDate.day_of_week.toUpper()]);
         var dayDims = dc.getTextDimensions(dayStr, DAY_FONT);
-        var dateDims = dc.getTextDimensions(dateStr, DATE_FONT);
-
-        // Calculate the minutes midpoint - this will be our reference point
-        var minMidpointX = TIME_XOFF + (minDims[0] / 2);
+        var dateDims = dc.getTextDimensions(dateStr, DAY_FONT);
         
-        // Calculate box position and dimensions
-        var boxX = 0; // Start slightly left of text
-        var boxY = screenHalfHeight - strHeight - TIME_YPAD - 4; // Start above hours text
-        var boxHeight = (strHeight * 2) + (TIME_YPAD * 2) + 8; // Height covers both lines + padding
-        var boxWidth = TIME_XOFF + timeWidth + 14; // Width based on widest time string + padding
+        // Box positioning
+        var boxX = 0;
+        var boxY = screenHalfHeight - timeHeight - TIME_YPAD - 4;
+        var boxHeight = (timeHeight * 2) + (TIME_YPAD * 2) + 8;
+        var boxWidth = TIME_XOFF + timeWidth + 16;
         var boxBottomY = boxY + boxHeight - BAR_WIDTH;
-
-        // Position day and date elements relative to minutes midpoint
-        // Day is to the left of midpoint with its right edge at midpoint
-        var dayBoxHPadding = 2;
-        var dayBoxVPadding = 0;
-        var dayBoxWidth = dayDims[0] + (dayBoxHPadding * 2);
         
-        // Date should be right next to the day with no spacing between
-        var dateHPadding = 8;
+        // Find midpoint of time digits - our reference point
+        var timeLeftX = TIME_XOFF;
+        var minMidpointX = timeLeftX + (timeWidth / 2);
+        
+        // Position day and date relative to midpoint
+        var dayBoxHPadding = 1;
+        var dayBoxWidth = dayDims[0] + (dayBoxHPadding * 2);
+        var dateHPadding = 6; // More padding to make it roughly same width as day
         var dateWidth = dateDims[0] + (dateHPadding * 2);
         
-        // Position elements while preserving the midpoint alignment
-        var totalElementWidth = dayBoxWidth + dateWidth;
-        var dayBoxX = minMidpointX - (totalElementWidth / 2) + (dayBoxWidth / 2);
-        var dateX = dayBoxX + (dayBoxWidth / 2) + (dateWidth / 2); // Position date right next to day
-
-        // Format seconds string for bottom of box
+        // Position elements so their combined center aligns with time midpoint
+        var totalWidth = dayBoxWidth + dateWidth;
+        var dayBoxX = minMidpointX - (totalWidth / 2) + (dayBoxWidth / 2);
+        var dateX = dayBoxX + (dayBoxWidth / 2) + (dateWidth / 2);
+        
+        // Format seconds for bottom display
         var secStr = Lang.format("$1$", [currentTime.sec.format("%02d")]);
         var secDims = dc.getTextDimensions(secStr, DATE_FONT);
-        var secHPadding = 4; // Add padding around seconds text
+        var secHPadding = 4; // Padding around seconds
+        var secX = minMidpointX; // Center seconds at midpoint
         
-        // Align seconds vertically with minutes
-        var secX = minMidpointX; // Center seconds at minutes midpoint
-        var secY = boxBottomY; // Position on bottom line
-
         // Draw the box lines
         dc.setColor(THEME_BRIGHT, THEME_BRIGHT);
         
-        // Top line - draw in segments
-        // Segment 1: Left edge to left edge of day box
+        // Top line - draw in segments with breaks for day and date
         dc.fillRectangle(boxX, boxY, dayBoxX - (dayBoxWidth / 2) - boxX, BAR_WIDTH);
-        // Segment 2: After date text to right edge
-        dc.fillRectangle(dateX + (dateWidth / 2), boxY, (boxX + boxWidth) - (dateX + (dateWidth / 2)), BAR_WIDTH);
+        dc.fillRectangle(dateX + (dateWidth / 2), boxY, 
+                        (boxX + boxWidth) - (dateX + (dateWidth / 2)), BAR_WIDTH);
         
-        // Right line
+        // Vertical edges
+        // dc.fillRectangle(boxX, boxY, BAR_WIDTH, boxHeight);
         dc.fillRectangle(boxX + boxWidth - BAR_WIDTH, boxY, BAR_WIDTH, boxHeight);
         
-        // Bottom line - draw in segments for seconds
+        // Bottom line with break for seconds
         if (!aboutToSleep) {
-            // Left segment
-            dc.fillRectangle(boxX, boxBottomY, secX - (secDims[0] / 2) - secHPadding - boxX, BAR_WIDTH);
-            // Right segment
-            dc.fillRectangle(secX + (secDims[0] / 2) + secHPadding, boxBottomY, (boxX + boxWidth) - (secX + (secDims[0] / 2) + secHPadding), BAR_WIDTH);
+            dc.fillRectangle(boxX, boxBottomY, 
+                            secX - (secDims[0] / 2) - secHPadding - boxX, BAR_WIDTH);
+            dc.fillRectangle(secX + (secDims[0] / 2) + secHPadding, boxBottomY,
+                            (boxX + boxWidth) - (secX + (secDims[0] / 2) + secHPadding), BAR_WIDTH);
         } else {
-            // Full bottom line if seconds are hidden
+            // Full bottom line if sleeping
             dc.fillRectangle(boxX, boxBottomY, boxWidth, BAR_WIDTH);
         }
-
+        
         // Draw hours and minutes
         dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(TIME_XOFF, screenHalfHeight - strHeight - TIME_YPAD, TIME_FONT, hourStr, Graphics.TEXT_JUSTIFY_LEFT);
-        dc.drawText(TIME_XOFF, screenHalfHeight + TIME_YPAD, TIME_FONT, minStr, Graphics.TEXT_JUSTIFY_LEFT);
-
-        // Draw day of week box on top edge (filled)
+        dc.drawText(timeLeftX, boxY - TIME_YPAD + TIME_YOFF, TIME_FONT, hourStr, Graphics.TEXT_JUSTIFY_LEFT);
+        dc.drawText(timeLeftX, boxY + timeHeight + TIME_YPAD + TIME_YOFF, TIME_FONT, minStr, Graphics.TEXT_JUSTIFY_LEFT);
+        
+        // Draw day in filled box
         drawInvertedText(
             dc,
             dayBoxX,
@@ -549,11 +543,11 @@ class PipBoyView extends WatchUi.WatchFace {
             DAY_FONT,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER,
             dayBoxHPadding,
-            dayBoxVPadding,
-            true // fill
+            0,  // No vertical padding
+            true // Fill background
         );
-
-        // Draw numerical date with an outlined box (not filled)
+        
+        // Draw date in outlined box
         drawInvertedText(
             dc,
             dateX,
@@ -562,14 +556,15 @@ class PipBoyView extends WatchUi.WatchFace {
             DAY_FONT,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER,
             dateHPadding,
-            0, // No vertical padding
+            0,  // No vertical padding
             false // Don't fill, just outline
         );
-
+        
         // Draw seconds on bottom line
         if (!aboutToSleep) {
             dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(secX, secY, DATE_FONT, secStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(secX, boxBottomY, DATE_FONT, secStr, 
+                        Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
     }
 
