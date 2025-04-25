@@ -13,10 +13,14 @@ class PipBoyView extends WatchUi.WatchFace {
     // =================================================================================
 
     // Colors
-    const THEME_DARK = 0x002222;
-    const THEME_MID = 0x003355;
-    const THEME_BRIGHT = 0x00FFFF;
-    const CRT_COLOR = 0x003355;
+    // const THEME_DARK = 0x000055;
+    // const THEME_MID = 0x003355;
+    // const THEME_BRIGHT = 0x00FFFF;
+    // const CRT_COLOR = 0x003355;
+    const THEME_DARK = 0x005500;
+    const THEME_MID = 0x00AA00;
+    const THEME_BRIGHT = 0x00FF00;
+    const CRT_COLOR = 0x00AA00;
 
     // Fonts
     const TEMP_FONT = WatchUi.loadResource(Rez.Fonts.monofonto24);
@@ -31,7 +35,7 @@ class PipBoyView extends WatchUi.WatchFace {
     const TEMP_YOFF = 52;
     const TEMP_BARLENGTH = 110;
     const BAR_WIDTH = 2;
-    const TIME_XOFF = 16;
+    const TIME_XOFF = 15;
     const TIME_YOFF = -2;
     const TIME_YPAD = -9; // Controls vertical spacing of hours and minutes
     const STATUS_YOFF = 20;
@@ -354,7 +358,7 @@ class PipBoyView extends WatchUi.WatchFace {
 
     // Draw the CRT effect
     function drawCRT(dc as Dc, freq as Number) as Void {
-        dc.setColor(CRT_COLOR, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(THEME_DARK, Graphics.COLOR_TRANSPARENT);
         for (var i = 0; i < screenHeight; i += freq) {
             dc.drawLine(0, i, screenWidth, i);
         }
@@ -511,7 +515,15 @@ class PipBoyView extends WatchUi.WatchFace {
         var ampmX = boxX + boxWidth - (BAR_WIDTH / 2);
         var ampmCenterY = boxY + (boxHeight / 2);
         var ampmTopY = ampmCenterY - ampmBottomDims[1];
-        var ampmBottomY = ampmCenterY - 2;
+        var ampmBottomY = ampmCenterY - 4;
+        
+        // Alarm icon positioning (if needed)
+        var alarmIconText = "R";
+        var alarmIconDims = dc.getTextDimensions(alarmIconText, ICON_FONT);
+        var alarmX = ampmX;
+        var alarmY = ampmBottomY + ampmBottomDims[1] + 16; // Position below AM/PM
+        var alarmBreakTop = alarmY - 2;
+        var alarmBreakBottom = alarmY + alarmIconDims[1] + 4;
         
         // Format seconds for bottom display
         var secStr = Lang.format("$1$", [currentTime.sec.format("%02d")]);
@@ -527,12 +539,23 @@ class PipBoyView extends WatchUi.WatchFace {
         dc.fillRectangle(dateX + (dateWidth / 2), boxY, 
                         (boxX + boxWidth) - (dateX + (dateWidth / 2)), BAR_WIDTH);
         
-        // Right vertical edge with break for AM/PM
+        // Right vertical edge with breaks for AM/PM and alarm (if needed)
         var ampmBreakTop = ampmTopY - 1;
         var ampmBreakBottom = ampmBottomY + ampmBottomDims[1] + 1;
+        
         dc.fillRectangle(boxX + boxWidth - BAR_WIDTH, boxY, BAR_WIDTH, ampmBreakTop - boxY);
-        dc.fillRectangle(boxX + boxWidth - BAR_WIDTH, ampmBreakBottom, 
-                        BAR_WIDTH, boxBottomY - ampmBreakBottom + BAR_WIDTH);
+        
+        if (hasAlarms) {
+            // Draw right edge with breaks for both AM/PM and alarm
+            dc.fillRectangle(boxX + boxWidth - BAR_WIDTH, ampmBreakBottom, 
+                            BAR_WIDTH, alarmBreakTop - ampmBreakBottom);
+            dc.fillRectangle(boxX + boxWidth - BAR_WIDTH, alarmBreakBottom, 
+                            BAR_WIDTH, boxBottomY - alarmBreakBottom + BAR_WIDTH);
+        } else {
+            // Draw right edge with break only for AM/PM
+            dc.fillRectangle(boxX + boxWidth - BAR_WIDTH, ampmBreakBottom, 
+                            BAR_WIDTH, boxBottomY - ampmBreakBottom + BAR_WIDTH);
+        }
         
         // Bottom line with break for seconds
         if (!aboutToSleep) {
@@ -554,6 +577,11 @@ class PipBoyView extends WatchUi.WatchFace {
         dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
         dc.drawText(ampmX, ampmTopY, DATE_FONT, ampmTop, Graphics.TEXT_JUSTIFY_CENTER);
         dc.drawText(ampmX, ampmBottomY, DATE_FONT, ampmBottom, Graphics.TEXT_JUSTIFY_CENTER);
+        
+        // Draw alarm icon if alarms are present
+        if (hasAlarms) {
+            dc.drawText(alarmX, alarmY, ICON_FONT, alarmIconText, Graphics.TEXT_JUSTIFY_CENTER);
+        }
         
         // Draw day in filled box
         drawInvertedText(
