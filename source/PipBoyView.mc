@@ -321,12 +321,17 @@ class PipBoyView extends WatchUi.WatchFace {
     // Layout Helpers - only callable from onUpdate
     // =================================================================================
 
+    // Draw the celestial icon
     function drawCelestialIcon(dc as Dc) as Void {
         // Configuration for the arc limits
         var horizontalLimit = 40;  // Max distance in pixels from center horizontally
-        var verticalLimit = 8;    // Max distance in pixels from top of screen
-        var topPadding = 4;       // Minimum distance from the top of the screen
-        
+        var verticalLimit = 10;    // Max distance in pixels from top of screen
+        var topPadding = 2;       // Minimum distance from the top of the screen
+
+        // Configuration for the actual drawn arc
+        var arcStartDegree = 112; // Left side
+        var arcEndDegree = 68;   // Right side
+
         // Get the current time
         var hour = currentTime.hour;
         var min = currentTime.min;
@@ -358,9 +363,37 @@ class PipBoyView extends WatchUi.WatchFace {
         var mappedX = arcPosition * 2 - 1;  // Map to -1 to 1
         var yPos = topPadding + verticalLimit * (mappedX * mappedX);
         
+        // Draw an arc that follows the celestial path
+        var arcCenterX = screenHalfWidth;
+        var arcCenterY = screenHalfHeight;
+        var iconHeight = dc.getFontHeight(ICON_FONT);
+        var arcRadius = screenHalfHeight - topPadding - iconHeight / 2 - 3; // Radius of the arc
+                
+        // Get icon dimensions to create gap in arc
+        var iconText = "c";
+        var iconWidth = dc.getTextWidthInPixels(iconText, CELESTIAL_ICONS);
+        var gapWidth = iconWidth + 8; // Add padding around icon
+        var leftOfIcon = xPos - (gapWidth / 2);
+        var rightOfIcon = xPos + (gapWidth / 2);
+        
+        dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
+        
+        // Draw left segment of arc
+        dc.setClip(0, 0, leftOfIcon, screenHeight);
+        dc.drawArc(arcCenterX, arcCenterY, arcRadius, Graphics.ARC_CLOCKWISE, arcStartDegree, arcEndDegree);
+        
+        // Draw right segment of arc
+        dc.setClip(rightOfIcon, 0, screenWidth - rightOfIcon, screenHeight);
+        dc.drawArc(arcCenterX, arcCenterY, arcRadius, Graphics.ARC_CLOCKWISE, arcStartDegree, arcEndDegree);
+        
+        // Clear the clip
+        dc.clearClip();
+        
         // Draw the celestial icon
         dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(xPos, yPos, CELESTIAL_ICONS, "c", Graphics.TEXT_JUSTIFY_CENTER);
+        dc.drawText(xPos, yPos, CELESTIAL_ICONS, iconText, Graphics.TEXT_JUSTIFY_CENTER);
+    }
+
     }
 
     // Draw Vault Boy 
