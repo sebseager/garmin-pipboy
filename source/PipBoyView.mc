@@ -58,6 +58,7 @@ class PipBoyView extends WatchUi.WatchFace {
   // Weather and location
   var currentWeather = null;
   var currentLocation = null;
+  var currentHeading = null;
   var sunrise = null;
   var sunset = null;
 
@@ -103,7 +104,6 @@ class PipBoyView extends WatchUi.WatchFace {
     setLayout(Rez.Layouts.WatchFace(dc));
     
     measureScreen(dc);
-    getCurrentPosition();
     getCurrentSettings();
   }
 
@@ -118,6 +118,7 @@ class PipBoyView extends WatchUi.WatchFace {
     // Grab per-update data
     getCurrentTime();
     getCurrentActivityInfo();
+    getCurrentPosition();
 
     // Start redraw
     dc.clear();
@@ -126,20 +127,22 @@ class PipBoyView extends WatchUi.WatchFace {
 
     drawCelestialIcon(dc);
 
-    // drawStats(dc);
+    // Replace these calls with the single refactored function
     drawVaultBoy(dc);
 
-    var stepsPercent = steps / stepGoal;
-    var activePercent = activeMinutes / activeMinutesGoal;
-    var bodyBatteryPercent = bodyBattery / 100;
-    var stressPercent = stress / 100;
-    drawStatBar(dc, screenHalfWidth - 18, 52, "CAPS", stepsPercent, 38, false);
-    drawStatBar(dc, screenHalfWidth - 12, 115, "RADS", activePercent, 32, false);
-    drawStatBar(dc, screenWidth - 37, 117, "STR", stressPercent, 28, true);
-    drawStatBar(dc, screenHalfWidth - 18, 173, "ENERGY", bodyBatteryPercent, 50, false);
-
-    // Call the function to draw heart rate
-    drawHeartRate(dc);
+    // Draw the current heading in a textbox
+    var headingStr = "HDG: " + currentHeading.toString();
+    drawInvertedText(
+      dc,
+      screenHalfWidth,
+      screenHeight - POS_YOFF,
+      headingStr,
+      DAY_FONT,
+      Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER,
+      1,  // Horizontal padding
+      0,  // Vertical padding
+      true // Fill background for inverted look
+    );
     
     // drawStatus(dc);
 
@@ -181,7 +184,6 @@ class PipBoyView extends WatchUi.WatchFace {
   // The user has just looked at their watch. Timers and animations may be started here.
   function onExitSleep() as Void {
     aboutToSleep = false;
-    getCurrentPosition();
     getCurrentSettings();
   }
 
@@ -206,6 +208,14 @@ class PipBoyView extends WatchUi.WatchFace {
       var cond = Toybox.Weather.getCurrentConditions();
       if (cond != null) {
         currentWeather = cond;
+      }
+    }
+
+    // Grab current heading if we can
+    if (Toybox has :Position) {
+      var info = Toybox.Position.getInfo();
+      if (info != null && info.heading != null) {
+        currentHeading = info.heading;
       }
     }
 
@@ -331,21 +341,32 @@ class PipBoyView extends WatchUi.WatchFace {
   // Layout Helpers - only callable from onUpdate
   // =================================================================================
 
-  // Draw heart rate in an inverted box on Vault Boy's chest
-  function drawHeartRate(dc as Dc) as Void {
-    // Only draw if we have valid heart rate data
+  // Draw Vault Boy with heart rate and stat bars
+  function drawVaultBoy(dc as Dc) as Void {
+    // Load the Vault Boy bitmap from resources
+    var vaultBoyBitmap = WatchUi.loadResource(Rez.Drawables.vaultboy);
+    
+    // Get bitmap dimensions for positioning
+    var bitmapWidth = vaultBoyBitmap.getWidth();
+    var bitmapHeight = vaultBoyBitmap.getHeight();
+    
+    // Position relative to RIGHT side of screen
+    var rightMargin = 20;
+    var topMargin = 85;
+    
+    // Calculate the x position relative to right edge
+    var bitmapX = screenWidth - bitmapWidth - rightMargin;
+    var bitmapY = topMargin;
+    
+    // Draw the bitmap
+    dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
+    dc.drawBitmap(bitmapX, bitmapY, vaultBoyBitmap);
+    
+    // Calculate heart rate position relative to the bitmap
+    // (centered on vault boy's chest)
     if (heartRate > 0) {
-      // Calculate the position for the heart rate display
-      // This should be roughly where Vault Boy's chest is
-      var vitalsX = screenHalfWidth + 8;
-      var vitalsY = 60;
-      var vitalsWidth = (screenWidth * 0.35).toNumber();
-      var vitalsHeight = 5 * (17 + 7) - 7;
-      
-      // Position heart rate in the middle of the vitals area
-      // Adjust Y position to be closer to chest area (about 40% down)
-      var heartX = vitalsX + (vitalsWidth / 2) + 2;
-      var heartY = vitalsY + (vitalsHeight * 0.47);
+      var heartX = bitmapX + (bitmapWidth * 0.5);
+      var heartY = bitmapY + (bitmapHeight * 0.47);
       
       // Format heart rate text
       var heartRateText = heartRate.toString();
@@ -363,6 +384,20 @@ class PipBoyView extends WatchUi.WatchFace {
         true // Fill background for inverted look
       );
     }
+    
+    // Calculate stat percentages
+    var topPercent = steps / stepGoal;
+    var topLeftPercent = activeMinutes / activeMinutesGoal;
+    var topRightPercent = bodyBattery / 100;
+    var bottomLeftPercent = stress / 100;
+    var bottomRightPercent = heartRate / 200;
+    
+    // Draw stat bars with positions relative to vault boy bitmap
+    drawStatBar(dc, bitmapX + 10, bitmapY - 37, "ENERGY", topPercent, 90, false, false);
+    drawStatBar(dc, bitmapX - 2, bitmapY, "CAPS", topLeftPercent, 30, true, false);
+    drawStatBar(dc, bitmapX + bitmapWidth - 25, bitmapY, "XYZ", topRightPercent, 30, true, true);
+    drawStatBar(dc, bitmapX - 2, bitmapY + 62, "RADS", bottomLeftPercent, 30, true, false);
+    drawStatBar(dc, bitmapX + bitmapWidth - 25, bitmapY + 62, "STR", bottomRightPercent, 30, true, true);
   }
 
   // Draw the celestial icon
@@ -547,19 +582,20 @@ class PipBoyView extends WatchUi.WatchFace {
     ];
     
     // Draw the four stat bars stacked vertically
-    drawStatBar(dc, startX, startY, labels[0], percentages[0], barLengths[0], false);
-    drawStatBar(dc, startX, startY + spacing, labels[1], percentages[1], barLengths[1], false);
-    drawStatBar(dc, startX, startY + spacing*2, labels[2], percentages[2], barLengths[2], false);
-    drawStatBar(dc, startX, startY + spacing*3, labels[3], percentages[3], barLengths[3], false);
+    drawStatBar(dc, startX, startY, labels[0], percentages[0], barLengths[0], false, false);
+    drawStatBar(dc, startX, startY + spacing, labels[1], percentages[1], barLengths[1], false, false);
+    drawStatBar(dc, startX, startY + spacing*2, labels[2], percentages[2], barLengths[2], false, false);
+    drawStatBar(dc, startX, startY + spacing*3, labels[3], percentages[3], barLengths[3], false, false);
   }
 
   // Draw a stat bar with progress indicator
   function drawStatBar(dc as Dc, x as Number, y as Number, label as String, 
-            percentage as Float, length as Number, left as Boolean) as Void {
+                       percentage as Float, length as Number, harpoon as Boolean, 
+                       left as Boolean) as Void {
     // Constants
-    var leftBarHeight = 12;      // Height of left vertical line
-    var triangleHeight = 8;     // Height of the triangle
-    var triangleWidth = 8;      // Width of the triangle
+    var leftBarHeight = 11;      // Height of left vertical line
+    var triangleHeight = 7;     // Height of the triangle
+    var triangleWidth = 7;      // Width of the triangle
     
     // Get text dimensions
     var labelHeight = dc.getFontHeight(DAY_FONT);
@@ -589,14 +625,19 @@ class PipBoyView extends WatchUi.WatchFace {
       // Draw right vertical line for left orientation
       dc.fillRectangle(barX + length - 2, barY, 2, leftBarHeight);
       
-      // Draw left triangle (pointing left)
-      var leftX = barX;
-      var points = [
-        [leftX, barY],
-        [leftX - triangleWidth, barY],
-        [leftX, barY + triangleHeight]
-      ];
-      dc.fillPolygon(points);
+      if (harpoon) {
+        // Draw left triangle (pointing left)
+        var leftX = barX - 1;
+        var points = [
+          [leftX, barY],
+          [leftX - triangleWidth, barY],
+          [leftX, barY + triangleHeight]
+        ];
+        dc.fillPolygon(points);
+      } else {
+        // Just draw a line
+        dc.fillRectangle(barX + length - 2, barY, 2, leftBarHeight);
+      }
       
       // Draw progress fill from right to left
       var fillWidth = ((length - 4) * percentage).toNumber();
@@ -607,14 +648,19 @@ class PipBoyView extends WatchUi.WatchFace {
       // Draw left vertical line for right orientation
       dc.fillRectangle(barX, barY, 2, leftBarHeight);
       
-      // Draw right triangle (pointing right)
-      var rightX = barX + length;
-      var points = [
-        [rightX, barY],
-        [rightX + triangleWidth, barY],
-        [rightX, barY + triangleHeight]
-      ];
-      dc.fillPolygon(points);
+      if (harpoon) {
+        // Draw right triangle (pointing right)
+        var rightX = barX + length;
+        var points = [
+          [rightX, barY],
+          [rightX + triangleWidth, barY],
+          [rightX, barY + triangleHeight]
+        ];
+        dc.fillPolygon(points);
+      } else {
+        // Just draw a line
+        dc.fillRectangle(barX + length - 2, barY, 2, leftBarHeight);
+      }
       
       // Draw progress fill from left to right
       var fillWidth = ((length - 4) * percentage).toNumber();
@@ -622,30 +668,6 @@ class PipBoyView extends WatchUi.WatchFace {
         dc.fillRectangle(barX + 3, barY + 3, fillWidth, leftBarHeight - 3);
       }
     }
-  }
-
-  // Draw Vault Boy 
-  function drawVaultBoy(dc as Dc) as Void {
-    // Load the Vault Boy bitmap from resources
-    var vaultBoyBitmap = WatchUi.loadResource(Rez.Drawables.vaultboy);
-    
-    // Calculate the area where vitals would be drawn
-    var vitalsX = screenHalfWidth + 8;
-    var vitalsY = 60;
-    var vitalsWidth = (screenWidth * 0.35).toNumber();
-    var vitalsHeight = 5 * (17 + 7) - 7;  // 5 bars of height 17 with padding 7 between them
-    
-    // Get bitmap dimensions for centering
-    var bitmapWidth = vaultBoyBitmap.getWidth();
-    var bitmapHeight = vaultBoyBitmap.getHeight();
-    
-    // Center the bitmap within the vitals area
-    var x = vitalsX + (vitalsWidth - bitmapWidth) / 2;
-    var y = vitalsY + (vitalsHeight - bitmapHeight) / 2;
-    
-    // Draw the bitmap with the same color as other UI elements
-    dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
-    dc.drawBitmap(x, y, vaultBoyBitmap);
   }
 
   // Get screen dimensions
