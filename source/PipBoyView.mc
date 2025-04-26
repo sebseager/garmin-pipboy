@@ -82,6 +82,7 @@ class PipBoyView extends WatchUi.WatchFace {
   var stepGoal = 0;
   var bodyBattery = 100;
   var stress = 0;
+  var heartRate = 0;
 
   // Other
   var allVitalsValid = true;
@@ -104,7 +105,6 @@ class PipBoyView extends WatchUi.WatchFace {
     measureScreen(dc);
     getCurrentPosition();
     getCurrentSettings();
-    getCurrentActivityInfo();
   }
 
   // Called when this View is brought to the foreground. Restore
@@ -117,6 +117,7 @@ class PipBoyView extends WatchUi.WatchFace {
   function onUpdate(dc as Dc) as Void {
     // Grab per-update data
     getCurrentTime();
+    getCurrentActivityInfo();
 
     // Start redraw
     dc.clear();
@@ -125,7 +126,20 @@ class PipBoyView extends WatchUi.WatchFace {
 
     drawCelestialIcon(dc);
 
-    drawStats(dc);
+    // drawStats(dc);
+    drawVaultBoy(dc);
+
+    var stepsPercent = steps / stepGoal;
+    var activePercent = activeMinutes / activeMinutesGoal;
+    var bodyBatteryPercent = bodyBattery / 100;
+    var stressPercent = stress / 100;
+    drawStatBar(dc, screenHalfWidth - 18, 52, "CAPS", stepsPercent, 38, false);
+    drawStatBar(dc, screenHalfWidth - 12, 115, "RADS", activePercent, 32, false);
+    drawStatBar(dc, screenWidth - 37, 117, "STR", stressPercent, 28, true);
+    drawStatBar(dc, screenHalfWidth - 18, 173, "ENERGY", bodyBatteryPercent, 50, false);
+
+    // Call the function to draw heart rate
+    drawHeartRate(dc);
     
     // drawStatus(dc);
 
@@ -169,7 +183,6 @@ class PipBoyView extends WatchUi.WatchFace {
     aboutToSleep = false;
     getCurrentPosition();
     getCurrentSettings();
-    getCurrentActivityInfo();
   }
 
   // Terminate any active timers and prepare for slow updates.
@@ -262,6 +275,14 @@ class PipBoyView extends WatchUi.WatchFace {
         } else {
           allVitalsValid = false;
         }
+        if (ActivityMonitor has :getHeartRateHistory) {
+          var hr = Activity.getActivityInfo().currentHeartRate;
+          if (hr != null) {
+            heartRate = hr;
+          } else {
+            allVitalsValid = false;
+          }
+        }
       } else {
         allVitalsValid = false;
       }
@@ -310,6 +331,40 @@ class PipBoyView extends WatchUi.WatchFace {
   // Layout Helpers - only callable from onUpdate
   // =================================================================================
 
+  // Draw heart rate in an inverted box on Vault Boy's chest
+  function drawHeartRate(dc as Dc) as Void {
+    // Only draw if we have valid heart rate data
+    if (heartRate > 0) {
+      // Calculate the position for the heart rate display
+      // This should be roughly where Vault Boy's chest is
+      var vitalsX = screenHalfWidth + 8;
+      var vitalsY = 60;
+      var vitalsWidth = (screenWidth * 0.35).toNumber();
+      var vitalsHeight = 5 * (17 + 7) - 7;
+      
+      // Position heart rate in the middle of the vitals area
+      // Adjust Y position to be closer to chest area (about 40% down)
+      var heartX = vitalsX + (vitalsWidth / 2) + 2;
+      var heartY = vitalsY + (vitalsHeight * 0.47);
+      
+      // Format heart rate text
+      var heartRateText = heartRate.toString();
+      
+      // Draw heart rate in inverted box
+      drawInvertedText(
+        dc,
+        heartX,
+        heartY.toNumber(),
+        heartRateText,
+        DAY_FONT,
+        Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER,
+        1,  // Horizontal padding
+        0,  // Vertical padding
+        true // Fill background for inverted look
+      );
+    }
+  }
+
   // Draw the celestial icon
   function drawCelestialIcon(dc as Dc) as Void {
     // Configuration for the arc limits
@@ -325,7 +380,7 @@ class PipBoyView extends WatchUi.WatchFace {
     var tabPadding = 4;
 
     // Determine whether to show sunrise or sunset based on what's coming up next
-    var sunEventText = ""; // Default if times are not available
+    var sunEventText = null; // Default if times are not available
     
     if (sunrise != null && sunset != null) {
       // Get current time in minutes since midnight
@@ -416,8 +471,9 @@ class PipBoyView extends WatchUi.WatchFace {
     // Clear the clip
     dc.clearClip();
 
-    var sunEventTextWidth = dc.getTextWidthInPixels(sunEventText, DAY_FONT);
-    if (sunEventTextWidth > 0) {
+    if (sunEventText != null) {
+      var sunEventTextWidth = dc.getTextWidthInPixels(sunEventText, DAY_FONT);
+      
       // Calculate text dimensions and position for the sunriseText
       // var sunriseTextHeight = dc.getFontHeight(DAY_FONT);
       var sunEventX = screenHalfWidth;
@@ -425,7 +481,7 @@ class PipBoyView extends WatchUi.WatchFace {
       
       // Calculate tab points
       var tabLeftX = sunEventX - (sunEventTextWidth/2) - tabPadding;
-      var tabRightX = sunEventY + (sunEventTextWidth/2) + tabPadding;
+      var tabRightX = sunEventX + (sunEventTextWidth/2) + tabPadding;
       // var tabBottomY = sunriseTextY + sunriseTextHeight / 2;
       
       // Draw the line with detour under text (in multiple segments)
@@ -433,15 +489,6 @@ class PipBoyView extends WatchUi.WatchFace {
       
       // Left segment of line
       dc.drawLine(arcLeftmostX + 2, arcLeftmostY, tabLeftX, arcLeftmostY);
-      
-      // Left vertical down
-      // dc.drawLine(tabLeftX, arcLeftmostY, tabLeftX, tabBottomY);
-      
-      // Horizontal under text
-      // dc.drawLine(tabLeftX, tabBottomY, tabRightX, tabBottomY);
-      
-      // Right vertical up
-      // dc.drawLine(tabRightX, tabBottomY, tabRightX, arcRightmostY);
 
       // Right segment of line
       dc.drawLine(tabRightX, arcRightmostY, arcRightmostX, arcRightmostY);
@@ -463,7 +510,7 @@ class PipBoyView extends WatchUi.WatchFace {
   }
   
   // Draw multiple stat bars in a stacked layout
-  function drawStats(dc as Dc) as Void {
+  function drawStatStack(dc as Dc) as Void {
     // Position constants
     var startY = 54;
     
@@ -471,7 +518,7 @@ class PipBoyView extends WatchUi.WatchFace {
     var spacing = 36;
     
     // Padding values
-    var topBottomRightPadding = 50;   // Top and bottom rows right padding
+    var topBottomRightPadding = 120;   // Top and bottom rows right padding
     var middleRightPadding = 40;       // Middle rows right padding
     var startX = TIME_YOFF + dc.getTextWidthInPixels("XX", TIME_FONT) + 42;
     
@@ -500,55 +547,80 @@ class PipBoyView extends WatchUi.WatchFace {
     ];
     
     // Draw the four stat bars stacked vertically
-    drawStatBar(dc, startX, startY, labels[0], percentages[0], barLengths[0]);
-    drawStatBar(dc, startX, startY + spacing, labels[1], percentages[1], barLengths[1]);
-    drawStatBar(dc, startX, startY + spacing*2, labels[2], percentages[2], barLengths[2]);
-    drawStatBar(dc, startX, startY + spacing*3, labels[3], percentages[3], barLengths[3]);
+    drawStatBar(dc, startX, startY, labels[0], percentages[0], barLengths[0], false);
+    drawStatBar(dc, startX, startY + spacing, labels[1], percentages[1], barLengths[1], false);
+    drawStatBar(dc, startX, startY + spacing*2, labels[2], percentages[2], barLengths[2], false);
+    drawStatBar(dc, startX, startY + spacing*3, labels[3], percentages[3], barLengths[3], false);
   }
 
   // Draw a stat bar with progress indicator
   function drawStatBar(dc as Dc, x as Number, y as Number, label as String, 
-            percentage as Float, length as Number) as Void {
+            percentage as Float, length as Number, left as Boolean) as Void {
     // Constants
     var leftBarHeight = 12;      // Height of left vertical line
     var triangleHeight = 8;     // Height of the triangle
     var triangleWidth = 8;      // Width of the triangle
-    var valueGap = 10;          // Gap between value and bar assembly
     
     // Get text dimensions
     var labelHeight = dc.getFontHeight(DAY_FONT);
     
     // Position calculations
-    var labelX = x + valueGap;
-    var barX = labelX;
-    var labelY = y;
-    var barY = labelY + labelHeight - 2;
+    var barX = x;
+    var barY = y + labelHeight - 2;
+    var labelX;
     
     // Set color
     dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
     
-    // Draw label
-    dc.drawText(labelX, labelY, DAY_FONT, label, Graphics.TEXT_JUSTIFY_LEFT);
+    if (left) {
+      // Right-justified text for left orientation
+      labelX = x + length;
+      dc.drawText(labelX, y, DAY_FONT, label, Graphics.TEXT_JUSTIFY_RIGHT);
+    } else {
+      // Left-justified text for right orientation
+      labelX = x;
+      dc.drawText(labelX, y, DAY_FONT, label, Graphics.TEXT_JUSTIFY_LEFT);
+    }
     
     // Draw horizontal line
     dc.fillRectangle(barX, barY, length, 2);
     
-    // Draw left vertical line
-    dc.fillRectangle(barX, barY, 2, leftBarHeight);
-    
-    // Draw right triangle (bottom half of arrow pointing right)
-    var rightX = barX + length;
-    var points = [
-      [rightX, barY],
-      [rightX + triangleWidth, barY],
-      [rightX, barY + triangleHeight]
-    ];
-    dc.fillPolygon(points);
-    
-    // Draw progress fill
-    var fillWidth = ((length - 4) * percentage).toNumber();
-    if (fillWidth > 0) {
-      dc.fillRectangle(barX + 3, barY + 3, fillWidth, leftBarHeight - 3);
+    if (left) {
+      // Draw right vertical line for left orientation
+      dc.fillRectangle(barX + length - 2, barY, 2, leftBarHeight);
+      
+      // Draw left triangle (pointing left)
+      var leftX = barX;
+      var points = [
+        [leftX, barY],
+        [leftX - triangleWidth, barY],
+        [leftX, barY + triangleHeight]
+      ];
+      dc.fillPolygon(points);
+      
+      // Draw progress fill from right to left
+      var fillWidth = ((length - 4) * percentage).toNumber();
+      if (fillWidth > 0) {
+        dc.fillRectangle(barX + length - 3 - fillWidth, barY + 3, fillWidth, leftBarHeight - 3);
+      }
+    } else {
+      // Draw left vertical line for right orientation
+      dc.fillRectangle(barX, barY, 2, leftBarHeight);
+      
+      // Draw right triangle (pointing right)
+      var rightX = barX + length;
+      var points = [
+        [rightX, barY],
+        [rightX + triangleWidth, barY],
+        [rightX, barY + triangleHeight]
+      ];
+      dc.fillPolygon(points);
+      
+      // Draw progress fill from left to right
+      var fillWidth = ((length - 4) * percentage).toNumber();
+      if (fillWidth > 0) {
+        dc.fillRectangle(barX + 3, barY + 3, fillWidth, leftBarHeight - 3);
+      }
     }
   }
 
@@ -558,8 +630,8 @@ class PipBoyView extends WatchUi.WatchFace {
     var vaultBoyBitmap = WatchUi.loadResource(Rez.Drawables.vaultboy);
     
     // Calculate the area where vitals would be drawn
-    var vitalsX = screenHalfWidth + 2;
-    var vitalsY = 71;
+    var vitalsX = screenHalfWidth + 8;
+    var vitalsY = 60;
     var vitalsWidth = (screenWidth * 0.35).toNumber();
     var vitalsHeight = 5 * (17 + 7) - 7;  // 5 bars of height 17 with padding 7 between them
     
@@ -573,9 +645,7 @@ class PipBoyView extends WatchUi.WatchFace {
     
     // Draw the bitmap with the same color as other UI elements
     dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
-    dc.drawBitmap2(x, y, vaultBoyBitmap, {
-      :tintColor => THEME_BRIGHT, // Tint color
-    });
+    dc.drawBitmap(x, y, vaultBoyBitmap);
   }
 
   // Get screen dimensions
