@@ -40,7 +40,6 @@ class PipBoyView extends WatchUi.WatchFace {
   const TIME_YOFF = -2;
   const TIME_YPAD = -9; // Controls vertical spacing of hours and minutes
   const STATUS_YOFF = 20;
-  const TABS_YOFF = 60;
   const POS_YOFF = 32;
 
   // Other
@@ -95,16 +94,17 @@ class PipBoyView extends WatchUi.WatchFace {
 
   function initialize() {
     WatchFace.initialize();
+    getCurrentTime();
   }
 
   // Load your resources here
   function onLayout(dc as Dc) as Void {
     setLayout(Rez.Layouts.WatchFace(dc));
-
+    
     measureScreen(dc);
+    getCurrentPosition();
     getCurrentSettings();
     getCurrentActivityInfo();
-    getCurrentPosition();
   }
 
   // Called when this View is brought to the foreground. Restore
@@ -116,23 +116,17 @@ class PipBoyView extends WatchUi.WatchFace {
   // Update the view
   function onUpdate(dc as Dc) as Void {
     // Grab per-update data
-    currentMoment = Time.now();
-    currentTime = System.getClockTime();
-    currentDate = Time.Gregorian.info(currentMoment, Time.FORMAT_MEDIUM);
+    getCurrentTime();
 
     // Start redraw
     dc.clear();
     drawCRT(dc, CRT_FREQ);
     drawTime(dc);
 
-    // TODO remove
-    getCurrentPosition();
-
     drawCelestialIcon(dc);
 
     drawStats(dc);
-
-    // drawBottomTabs(dc, "HRS", "MAP", "WTR", 8);
+    
     // drawStatus(dc);
 
     // // Only draw top bar if we have weather data
@@ -173,9 +167,9 @@ class PipBoyView extends WatchUi.WatchFace {
   // The user has just looked at their watch. Timers and animations may be started here.
   function onExitSleep() as Void {
     aboutToSleep = false;
+    getCurrentPosition();
     getCurrentSettings();
     getCurrentActivityInfo();
-    getCurrentPosition();
   }
 
   // Terminate any active timers and prepare for slow updates.
@@ -186,6 +180,12 @@ class PipBoyView extends WatchUi.WatchFace {
   // =================================================================================
   // Data Helpers
   // =================================================================================
+
+  function getCurrentTime() as Void {
+    currentMoment = Time.now();
+    currentTime = System.getClockTime();
+    currentDate = Time.Gregorian.info(currentMoment, Time.FORMAT_MEDIUM);
+  }
 
   function getCurrentPosition() as Void {
     // Grab current weather conditions
@@ -315,12 +315,12 @@ class PipBoyView extends WatchUi.WatchFace {
     // Configuration for the arc limits
     var horizontalLimit = 40;  // Max distance in pixels from center horizontally
     var verticalLimit = 10;    // Max distance in pixels from top of screen
-    var topPadding = 2;       // Minimum distance from the top of the screen
+    var topPadding = 1;       // Minimum distance from the top of the screen
 
     // Configuration for the actual drawn arc
     // Use .5 if there are rounding issues between arc and horizontal line
-    var arcStartDegree = 126; // Left side (112 is start of motion)
-    var arcEndDegree = 54;   // Right side (68 is end of motion)
+    var arcStartDegree = 128; // Left side (112 is start of motion)
+    var arcEndDegree = 52;   // Right side (68 is end of motion)
     
     var tabPadding = 4;
 
@@ -594,7 +594,6 @@ class PipBoyView extends WatchUi.WatchFace {
     }
   }
 
-
   // Draw the time and date
   function drawTime(dc as Dc) as Void {
     // Format time
@@ -797,150 +796,5 @@ class PipBoyView extends WatchUi.WatchFace {
     }
   }
 
-  // Draw a tab bar with three labels where the line deviates under the middle label only
-  function drawBottomTabs(dc as Dc, title1 as String, title2 as String, 
-              title3 as String, hpad as Number) as Void {
-    // Tab bar position
-    var ty = screenHeight - TABS_YOFF;
-    var lw = BAR_WIDTH;
-    
-    // Calculate tab positions (biased towards center a bit)
-    var tx1 = screenWidth / 4;
-    var tx2 = screenWidth / 2;
-    var tx3 = (screenWidth * 3) / 4;
-
-    // Get text dimensions
-    var dims1 = dc.getTextDimensions(title1, DAY_FONT);
-    var dims2 = dc.getTextDimensions(title2, DAY_FONT);
-    var dims3 = dc.getTextDimensions(title3, DAY_FONT);
-    
-    var w1 = dims1[0];
-    var w2 = dims2[0];
-    var h2 = dims2[1];
-    var w3 = dims3[0];
-    
-    // Set drawing color
-    dc.setColor(THEME_BRIGHT, THEME_BRIGHT);
-    
-    // Draw the tab line in segments using fillRectangle for thickness
-    // Segment 1: left edge to first tab
-    dc.fillRectangle(0, ty - lw/2, tx1 - w1/2 - hpad, lw);
-    
-    // Segment 2: first tab to second tab (skip under first tab)
-    dc.fillRectangle(tx1 + w1/2 + hpad, ty - lw/2, tx2 - w2/2 - hpad - (tx1 + w1/2 + hpad), lw);
-    
-    // Segment 3: under second tab (middle tab)
-    dc.fillRectangle(tx2 - w2/2 - hpad - lw/2, ty - lw/2, lw, h2/2 + lw/2);
-    // Bottom horizontal - extended by lw/2 on each side
-    dc.fillRectangle(tx2 - w2/2 - hpad - lw/2, ty + h2/2 - lw/2, w2 + 2*hpad + lw, lw);
-    dc.fillRectangle(tx2 + w2/2 + hpad - lw/2, ty - lw/2, lw, h2/2 + lw/2);
-    
-    // Segment 4: second tab to third tab
-    dc.fillRectangle(tx2 + w2/2 + hpad, ty - lw/2, tx3 - w3/2 - hpad - (tx2 + w2/2 + hpad), lw);
-    
-    // Segment 5: third tab to right edge (skip under third tab)
-    dc.fillRectangle(tx3 + w3/2 + hpad, ty - lw/2, screenWidth - (tx3 + w3/2 + hpad), lw);
-    
-    // Draw the text for each tab
-    dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
-    dc.drawText(
-      tx1,
-      ty - 2,
-      DAY_FONT,
-      title1,
-      Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-    );
-    
-    dc.drawText(
-      tx2,
-      ty - 2,
-      DAY_FONT,
-      title2,
-      Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-    );
-    
-    dc.drawText(
-      tx3,
-      ty - 2,
-      DAY_FONT,
-      title3,
-      Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-    );
-  }
-
-  // Draw a top bar with three evenly spaced labels that break the line
-  function drawTopBar(dc as Dc, title1 as String, title2 as String, 
-            title3 as String, hpad as Number) as Void {
-    // Top bar position
-    var ty = TEMP_YOFF;
-    var lw = BAR_WIDTH;
-    
-    // Create a narrower bar with text clustered more centrally
-    var barWidth = screenWidth * 0.65;
-    var barStartX = (screenWidth - barWidth) / 2;
-    var barEndX = barStartX + barWidth;
-    
-    // Calculate label positions more closely clustered
-    var tx1 = barStartX + (barWidth * 0.2);
-    var tx2 = barStartX + (barWidth * 0.5);
-    var tx3 = barStartX + (barWidth * 0.8);
-
-    // Get text dimensions
-    var font = DATE_FONT;
-    var dims1 = dc.getTextDimensions(title1, font);
-    var dims2 = dc.getTextDimensions(title2, font);
-    var dims3 = dc.getTextDimensions(title3, font);
-    
-    var w1 = dims1[0];
-    var w2 = dims2[0];
-    var w3 = dims3[0];
-    
-    // Set drawing color
-    dc.setColor(THEME_BRIGHT, THEME_BRIGHT);
-    
-    // Draw the line segments with breaks for text
-    
-    // Left bracket - vertical part (10px tall)
-    dc.fillRectangle(barStartX, ty - lw/2, lw, 10);
-    
-    // Segment 1: left bracket to first label
-    dc.fillRectangle(barStartX, ty - lw/2, tx1 - w1/2 - hpad - barStartX, lw);
-    
-    // Segment 2: after first label to before second label
-    dc.fillRectangle(tx1 + w1/2 + hpad, ty - lw/2, tx2 - w2/2 - hpad - (tx1 + w1/2 + hpad), lw);
-    
-    // Segment 3: after second label to before third label
-    dc.fillRectangle(tx2 + w2/2 + hpad, ty - lw/2, tx3 - w3/2 - hpad - (tx2 + w2/2 + hpad), lw);
-    
-    // Segment 4: after third label to right bracket
-    dc.fillRectangle(tx3 + w3/2 + hpad, ty - lw/2, barEndX - (tx3 + w3/2 + hpad), lw);
-    
-    // Right bracket - vertical part (10px tall)
-    dc.fillRectangle(barEndX - lw, ty - lw/2, lw, 10);
-    
-    // Draw the text for each label
-    dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
-    dc.drawText(
-      tx1,
-      ty - 2,
-      font,
-      title1,
-      Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-    );
-    dc.drawText(
-      tx2,
-      ty - 2,
-      font,
-      title2,
-      Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-    );
-    dc.drawText(
-      tx3,
-      ty - 2,
-      font,
-      title3,
-      Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-    );
-  }
 
 }
