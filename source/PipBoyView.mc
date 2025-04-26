@@ -396,15 +396,16 @@ class PipBoyView extends WatchUi.WatchFace {
         
         // Draw labels for cardinal directions
         var halfLabelHeight = dc.getFontHeight(DAY_FONT) / 2;
+        var textY = isCardinal ? ticksY + halfLabelHeight : labelsY;
         if (isCardinal) {
           drawInvertedText(
             dc,
             tickX,
-            isCardinal ? ticksY + halfLabelHeight : labelsY,
+            textY,
             cardinalLabels[cardinalIndex],
             DAY_FONT,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER,
-            2,  // Horizontal padding
+            4,  // Horizontal padding
             0,  // Vertical padding
             true // Fill background
           );
@@ -424,7 +425,14 @@ class PipBoyView extends WatchUi.WatchFace {
     ];
     dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
     dc.fillPolygon(trianglePoints);
-    
+
+    // Draw the heading degrees text below the compass
+    var headingText = headingDegrees.format("%d") + "°";
+    var headingY = screenHeight - dc.getFontHeight(DAY_FONT) + 8; // Position below the labels
+    dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
+    dc.drawText(centerX + 3, headingY, DAY_FONT, headingText, 
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+
     // Reset pen width to default
     dc.setPenWidth(1);
   }
@@ -453,8 +461,8 @@ class PipBoyView extends WatchUi.WatchFace {
     // Calculate heart rate position relative to the bitmap
     // (centered on vault boy's chest)
     if (heartRate > 0) {
-      var heartX = bitmapX + (bitmapWidth * 0.5);
-      var heartY = bitmapY + (bitmapHeight * 0.47);
+      var heartX = (bitmapX + (bitmapWidth * 0.52)).toNumber();
+      var heartY = (bitmapY + (bitmapHeight * 0.45)).toNumber();
       
       // Format heart rate text
       var heartRateText = heartRate.toString();
@@ -463,11 +471,11 @@ class PipBoyView extends WatchUi.WatchFace {
       drawInvertedText(
         dc,
         heartX,
-        heartY.toNumber(),
+        heartY,
         heartRateText,
         DAY_FONT,
         Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER,
-        1,  // Horizontal padding
+        0,  // Horizontal padding
         0,  // Vertical padding
         true // Fill background for inverted look
       );
