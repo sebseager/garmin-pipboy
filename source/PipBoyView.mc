@@ -130,19 +130,8 @@ class PipBoyView extends WatchUi.WatchFace {
     // Replace these calls with the single refactored function
     drawVaultBoy(dc);
 
-    // Draw the current heading in a textbox
-    var headingStr = "HDG: " + currentHeading.toString();
-    drawInvertedText(
-      dc,
-      screenHalfWidth,
-      screenHeight - POS_YOFF,
-      headingStr,
-      DAY_FONT,
-      Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER,
-      1,  // Horizontal padding
-      0,  // Vertical padding
-      true // Fill background for inverted look
-    );
+    // Draw the current heading
+    drawLinearCompass(dc);
     
     // drawStatus(dc);
 
@@ -340,6 +329,105 @@ class PipBoyView extends WatchUi.WatchFace {
   // =================================================================================
   // Layout Helpers - only callable from onUpdate
   // =================================================================================
+
+  // Draw a linear compass at the bottom of the screen
+  function drawLinearCompass(dc as Dc) as Void {
+    // Define constants for the compass layout
+    var separatorY = screenHeight - 43;
+    var ticksY = separatorY;
+    var tickHeight = 8;
+    var labelsY = ticksY + tickHeight + 10;
+    
+    // Cardinal directions in degrees (clockwise from North)
+    var cardinalDirs = [0, 45, 90, 135, 180, 225, 270, 315];
+    var cardinalLabels = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+    
+    // Draw the separator line
+    dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
+    dc.setPenWidth(2);
+    dc.drawLine(0, separatorY, screenWidth, separatorY);
+
+    // Don't keep going if we don't have heading data
+    if (currentHeading == null) {
+      return;
+    }
+    
+    // Convert heading from radians to degrees and normalize to 0-360
+    var headingDegrees = (currentHeading * 180.0 / Math.PI).toNumber() % 360;
+    if (headingDegrees < 0) {
+      headingDegrees += 360;
+    }
+    
+    // Define the range to display (180 degrees centered on current heading)
+    var visibleRangeStart = headingDegrees - 90;
+    
+    // Draw minor ticks every 15 degrees and major ticks for cardinal directions
+    for (var degree = 0; degree < 360; degree += 15) {
+      // Draw ticks and labels
+      dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
+
+      // Calculate where this degree falls in our visible range
+      var relativeDegree = (degree - visibleRangeStart) % 360;
+      if (relativeDegree < 0) {
+        relativeDegree += 360;
+      }
+      
+      // Only display ticks within our 180 degree visible range
+      if (relativeDegree <= 180) {
+        // Map the relative degree (0-180) to screen position (0-screenWidth)
+        var tickX = (relativeDegree / 180.0) * screenWidth;
+        
+        // Check if this is a cardinal/ordinal direction
+        var isCardinal = false;
+        var cardinalIndex = -1;
+        for (var i = 0; i < cardinalDirs.size(); i++) {
+          if (cardinalDirs[i] == degree) {
+            isCardinal = true;
+            cardinalIndex = i;
+            break;
+          }
+        }
+        
+        // Draw the tick
+        if (!isCardinal) {
+          dc.setPenWidth(isCardinal ? 3 : 1);
+          dc.drawLine(tickX, ticksY, tickX, ticksY + tickHeight);
+        }
+        
+        // Draw labels for cardinal directions
+        var halfLabelHeight = dc.getFontHeight(DAY_FONT) / 2;
+        if (isCardinal) {
+          drawInvertedText(
+            dc,
+            tickX,
+            isCardinal ? ticksY + halfLabelHeight : labelsY,
+            cardinalLabels[cardinalIndex],
+            DAY_FONT,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER,
+            2,  // Horizontal padding
+            0,  // Vertical padding
+            true // Fill background
+          );
+        }
+      }
+    }
+    
+    // Add a triangle marker for current heading at center of screen
+    var triangleWidth = 14;  // Width of the triangle base
+    var triangleHeight = 8; // Height of the triangle
+    var centerX = screenHalfWidth;
+    var triangleY = separatorY;
+    var trianglePoints = [
+      [centerX, triangleY - triangleHeight], // Top point
+      [centerX - triangleWidth/2, triangleY], // Bottom left
+      [centerX + triangleWidth/2, triangleY]  // Bottom right
+    ];
+    dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
+    dc.fillPolygon(trianglePoints);
+    
+    // Reset pen width to default
+    dc.setPenWidth(1);
+  }
 
   // Draw Vault Boy with heart rate and stat bars
   function drawVaultBoy(dc as Dc) as Void {
