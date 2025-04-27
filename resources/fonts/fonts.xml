@@ -9,5 +9,4 @@
     <font id="monofonto64" filename="monofonto/monofonto_64.fnt" antialias="true" />
     <font id="monofonto72" filename="monofonto/monofonto_72.fnt" antialias="true" />
     <font id="icons24" filename="icons/icons_24.fnt" antialias="true" />
-    <font id="celestial" filename="icons/celestial_icons.fnt" antialias="true" />
 </fonts>

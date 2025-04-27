@@ -29,7 +29,6 @@ class PipBoyView extends WatchUi.WatchFace {
   const DAY_FONT = WatchUi.loadResource(Rez.Fonts.monofonto16);
   const DATE_FONT = WatchUi.loadResource(Rez.Fonts.monofonto20);
   const ICON_FONT = WatchUi.loadResource(Rez.Fonts.icons24);
-  const CELESTIAL_ICONS = WatchUi.loadResource(Rez.Fonts.celestial);
 
   // Measurements
   const CRT_FREQ = 3;
@@ -510,53 +509,100 @@ class PipBoyView extends WatchUi.WatchFace {
     
     var tabPadding = 4;
 
-    // Determine whether to show sunrise or sunset based on what's coming up next
-    var sunEventText = null; // Default if times are not available
-    
-    if (sunrise != null && sunset != null) {
-      // Get current time in minutes since midnight
-      var currentTimeMinutes = currentTime.hour * 60 + currentTime.min;
-      
-      // Convert sunrise and sunset to minutes since midnight
-      var sunriseTime = Time.Gregorian.info(sunrise, Time.FORMAT_SHORT);
-      var sunsetTime = Time.Gregorian.info(sunset, Time.FORMAT_SHORT);
-      var sunriseMinutes = sunriseTime.hour * 60 + sunriseTime.min;
-      var sunsetMinutes = sunsetTime.hour * 60 + sunsetTime.min;
-      
-      // Determine which is coming up next
-      var timeToSunrise = (sunriseMinutes - currentTimeMinutes + 1440) % 1440;
-      var timeToSunset = (sunsetMinutes - currentTimeMinutes + 1440) % 1440;
-      
-      if (timeToSunrise < timeToSunset) {
-        // Sunrise is next
-        sunEventText = Lang.format("$1$:$2$", [sunriseTime.hour, sunriseTime.min.format("%02d")]);
-      } else {
-        // Sunset is next
-        sunEventText = Lang.format("$1$:$2$", [sunsetTime.hour, sunsetTime.min.format("%02d")]);
-      }
-    }
-
     // Get the current time
     var hour = currentTime.hour;
     var min = currentTime.min;
     var hourDecimal = hour + (min / 60.0);
     
-    // Calculate how many hours have passed since 4 AM
-    var hoursSince4am;
-    if (hourDecimal >= 4) {
-      hoursSince4am = hourDecimal - 4;
+    // Default sunrise/sunset times
+    var sunriseHour = 6;  // Default 6 AM if no sunrise time available
+    var sunsetHour = 20;  // Default 8 PM if no sunset time available
+    var sunriseMinutes = 0;
+    var sunsetMinutes = 0;
+    
+    // Use actual sunrise/sunset times if available
+    if (sunrise != null && sunset != null) {
+      var sunriseTime = Time.Gregorian.info(sunrise, Time.FORMAT_SHORT);
+      var sunsetTime = Time.Gregorian.info(sunset, Time.FORMAT_SHORT);
+      
+      sunriseHour = sunriseTime.hour;
+      sunriseMinutes = sunriseTime.min;
+      sunsetHour = sunsetTime.hour;
+      sunsetMinutes = sunsetTime.min;
+    }
+      
+    // Calculate decimal sunrise/sunset for more precise calculations
+    var sunriseDecimal = sunriseHour + (sunriseMinutes / 60.0);
+    var sunsetDecimal = sunsetHour + (sunsetMinutes / 60.0);
+    
+    // Calculate daylight hours
+    var daylightHours;
+    if (sunsetDecimal >= sunriseDecimal) {
+      daylightHours = sunsetDecimal - sunriseDecimal;
     } else {
-      hoursSince4am = hourDecimal + 20;  // Add 24 - 4 = 20 hours
+      daylightHours = (24 - sunriseDecimal) + sunsetDecimal;
+    }
+    var nightHours = 24 - daylightHours;
+    
+    // Calculate hours since sunrise
+    var hoursSinceSunrise;
+    if (hourDecimal >= sunriseDecimal) {
+      hoursSinceSunrise = hourDecimal - sunriseDecimal;
+    } else {
+      hoursSinceSunrise = hourDecimal + 24 - sunriseDecimal;
+    }
+
+    // Calculate hours till sunset
+    // Calculate hours till sunset
+    var hoursUntilSunset;
+    if (hoursSinceSunrise < daylightHours) {
+      // During day: just subtract hours since sunrise from total daylight hours
+      hoursUntilSunset = daylightHours - hoursSinceSunrise;
+    } else {
+      // During night: add remaining night hours and full daylight hours
+      var hoursSinceSunset = hoursSinceSunrise - daylightHours;
+      hoursUntilSunset = nightHours - hoursSinceSunset + daylightHours;
+    }
+    
+    // Determine if it's day or night
+    var isDay = false;
+    if (sunriseDecimal <= sunsetDecimal) {
+      // Normal day case
+      isDay = (hourDecimal >= sunriseDecimal && hourDecimal < sunsetDecimal);
+    } else {
+      // Day spans midnight
+      isDay = (hourDecimal >= sunriseDecimal || hourDecimal < sunsetDecimal);
     }
     
     // Calculate position around the arc (0.0 to 1.0)
     var arcPosition;
-    if (hoursSince4am <= 16) {
-      // Day time (4 AM to 8 PM): Left to right
-      arcPosition = hoursSince4am / 16.0;
+    if (hoursSinceSunrise < daylightHours) {
+      // Day time (sunrise to sunset): Left to right
+      arcPosition = hoursSinceSunrise / daylightHours;
     } else {
-      // Night time (8 PM to 4 AM): Right to left
-      arcPosition = 1.0 - ((hoursSince4am - 16) / 8.0);
+      // Night time (sunset to sunrise): Right to left
+      var hoursSinceSunset = hoursSinceSunrise - daylightHours;
+      arcPosition = 1.0 - (hoursSinceSunset / nightHours);
+    }
+    
+    // Choose the appropriate icon based on time since sunrise
+    var iconText;
+    if (isDay) {
+      if (hoursSinceSunrise < 2) {
+        iconText = "a";  // Dawn (0-1 hours after sunrise)
+      } else if (hoursSinceSunrise < 4) {
+        iconText = "b";  // Morning (1-3 hours after sunrise)
+      } else if (hoursSinceSunrise < 4 && hoursUntilSunset >= 4) {
+        iconText = "c";  // Midday (5-? hours after sunrise)
+      } else if (hoursUntilSunset < 4 && hoursUntilSunset >= 2) {
+        iconText = "b";  // Afternoon (3 hours until sunset)
+      } else if (hoursUntilSunset < 2) {
+        iconText = "a";  // Dusk (1 hour until sunset)
+      } else {
+        iconText = "c";  // Default just in case
+      }
+    } else {
+      iconText = "d";  // Night
     }
     
     // Calculate the x position
@@ -582,8 +628,7 @@ class PipBoyView extends WatchUi.WatchFace {
     var arcRightmostY = arcCenterY - arcRadius * Math.sin(arcEndRad);
 
     // Get icon dimensions to create gap in arc
-    var iconText = "c";
-    var iconWidth = dc.getTextWidthInPixels(iconText, CELESTIAL_ICONS);
+    var iconWidth = dc.getTextWidthInPixels(iconText, ICON_FONT);
     var gapWidth = iconWidth + 10; // Add padding around icon
     var leftOfIcon = xPos - (gapWidth / 2);
     var rightOfIcon = xPos + (gapWidth / 2);
@@ -602,18 +647,40 @@ class PipBoyView extends WatchUi.WatchFace {
     // Clear the clip
     dc.clearClip();
 
+    // Determine whether to show sunrise or sunset based on what's coming up next
+    var sunEventText = null; // Default if times are not available
+    
+    if (sunrise != null && sunset != null) {
+      // Get current time in minutes since midnight
+      var currentTimeMinutes = currentTime.hour * 60 + currentTime.min;
+      
+      // Convert sunrise and sunset to minutes since midnight
+      var sunriseTimeMinutes = sunriseHour * 60 + sunriseMinutes;
+      var sunsetTimeMinutes = sunsetHour * 60 + sunsetMinutes;
+      
+      // Determine which is coming up next
+      var timeToSunrise = (sunriseTimeMinutes - currentTimeMinutes + 1440) % 1440;
+      var timeToSunset = (sunsetTimeMinutes - currentTimeMinutes + 1440) % 1440;
+        
+      if (timeToSunrise < timeToSunset) {
+        // Sunrise is next
+        sunEventText = Lang.format("$1$:$2$", [sunriseHour, sunriseMinutes.format("%02d")]);
+      } else {
+        // Sunset is next
+        sunEventText = Lang.format("$1$:$2$", [sunsetHour, sunsetMinutes.format("%02d")]);
+      }
+    }
+
     if (sunEventText != null) {
       var sunEventTextWidth = dc.getTextWidthInPixels(sunEventText, DAY_FONT);
       
-      // Calculate text dimensions and position for the sunriseText
-      // var sunriseTextHeight = dc.getFontHeight(DAY_FONT);
+      // Calculate text dimensions and position
       var sunEventX = screenHalfWidth;
       var sunEventY = arcLeftmostY;
       
       // Calculate tab points
       var tabLeftX = sunEventX - (sunEventTextWidth/2) - tabPadding;
       var tabRightX = sunEventX + (sunEventTextWidth/2) + tabPadding;
-      // var tabBottomY = sunriseTextY + sunriseTextHeight / 2;
       
       // Draw the line with detour under text (in multiple segments)
       dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
@@ -624,7 +691,7 @@ class PipBoyView extends WatchUi.WatchFace {
       // Right segment of line
       dc.drawLine(tabRightX, arcRightmostY, arcRightmostX, arcRightmostY);
 
-      // Draw the sunrise text
+      // Draw the text
       dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
       dc.drawText(sunEventX, sunEventY, DAY_FONT, sunEventText, 
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
@@ -637,9 +704,9 @@ class PipBoyView extends WatchUi.WatchFace {
 
     // Draw the celestial icon
     dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
-    dc.drawText(xPos, yPos, CELESTIAL_ICONS, iconText, Graphics.TEXT_JUSTIFY_CENTER);
+    dc.drawText(xPos, yPos, ICON_FONT, iconText, Graphics.TEXT_JUSTIFY_CENTER);
   }
-  
+
   // Draw multiple stat bars in a stacked layout
   function drawStatStack(dc as Dc) as Void {
     // Position constants
@@ -841,7 +908,7 @@ class PipBoyView extends WatchUi.WatchFace {
     var ampmBottomY = ampmCenterY - 4;
     
     // Alarm icon positioning (if needed)
-    var alarmIconText = "R";
+    var alarmIconText = "g";
     var alarmX = ampmX;
     var alarmY = ampmBottomY + ampmBottomDims[1] + 18; // Position below AM/PM
     // var alarmIconDims = dc.getTextDimensions(alarmIconText, ICON_FONT);

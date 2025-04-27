@@ -1,8 +1,0 @@
-info face="connect-icons" size=22 bold=0 italic=0 charset="" unicode=0 stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=0,0 outline=0
-common lineHeight=22 base=22 scaleW=64 scaleH=64 pages=1 packed=0 alphaChnl=1 redChnl=0 greenChnl=0 blueChnl=0
-page id=0 file="celestial_icons_0.png"
-chars count=4
-char id=99   x=0     y=0     width=21    height=20    xoffset=-1    yoffset=1     xadvance=19    page=0  chnl=15
-char id=98   x=0     y=20    width=21    height=14    xoffset=-1    yoffset=4     xadvance=19    page=0  chnl=15
-char id=97   x=21    y=0     width=21    height=10    xoffset=-1    yoffset=6     xadvance=19    page=0  chnl=15
-char id=100  x=21    y=10    width=13    height=18    xoffset=3     yoffset=2     xadvance=19    page=0  chnl=15
