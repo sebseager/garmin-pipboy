@@ -486,13 +486,20 @@ class PipBoyView extends WatchUi.WatchFace {
     var topRightPercent = bodyBattery / 100;
     var bottomLeftPercent = stress / 100;
     var bottomRightPercent = heartRate / 200;
-    
+
+    // Add * to labels if the stat is maxed out
+    var topLabel = topPercent == 1.0 ? "ENERGY*" : "ENERGY";
+    var topLeftLabel = topLeftPercent == 1.0 ? "CAPS*" : "CAPS";
+    var topRightLabel = topRightPercent == 1.0 ? "XYZ*" : "XYZ";
+    var bottomLeftLabel = bottomLeftPercent == 1.0 ? "RADS*" : "RADS";
+    var bottomRightLabel = bottomRightPercent == 1.0 ? "STR*" : "STR";
+
     // Draw stat bars with positions relative to vault boy bitmap
-    drawStatBar(dc, bitmapX + 10, bitmapY - 37, "ENERGY", topPercent, 90, false, false);
-    drawStatBar(dc, bitmapX - 2, bitmapY, "CAPS", topLeftPercent, 30, true, false);
-    drawStatBar(dc, bitmapX + bitmapWidth - 25, bitmapY, "XYZ", topRightPercent, 30, true, true);
-    drawStatBar(dc, bitmapX - 2, bitmapY + 62, "RADS", bottomLeftPercent, 30, true, false);
-    drawStatBar(dc, bitmapX + bitmapWidth - 25, bitmapY + 62, "STR", bottomRightPercent, 30, true, true);
+    drawStatBar(dc, bitmapX + 10, bitmapY - 37, topLabel, topPercent, 90, false, false);
+    drawStatBar(dc, bitmapX - 2, bitmapY, topLeftLabel, topLeftPercent, 30, true, false);
+    drawStatBar(dc, bitmapX + bitmapWidth - 25, bitmapY, topRightLabel, topRightPercent, 30, true, true);
+    drawStatBar(dc, bitmapX - 2, bitmapY + 62, bottomLeftLabel, bottomLeftPercent, 30, true, false);
+    drawStatBar(dc, bitmapX + bitmapWidth - 25, bitmapY + 62, bottomRightLabel, bottomRightPercent, 30, true, true);
   }
 
   // Draw the celestial icon
@@ -799,7 +806,7 @@ class PipBoyView extends WatchUi.WatchFace {
         dc.fillPolygon(points);
       } else {
         // Just draw a line
-        dc.fillRectangle(barX + length - 2, barY, 2, leftBarHeight);
+        dc.fillRectangle(barX + length - 1, barY, 2, leftBarHeight);
       }
       
       // Draw progress fill from right to left
@@ -822,7 +829,7 @@ class PipBoyView extends WatchUi.WatchFace {
         dc.fillPolygon(points);
       } else {
         // Just draw a line
-        dc.fillRectangle(barX + length - 2, barY, 2, leftBarHeight);
+        dc.fillRectangle(barX + length - 1, barY, 2, leftBarHeight);
       }
       
       // Draw progress fill from left to right
