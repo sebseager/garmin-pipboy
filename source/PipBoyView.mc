@@ -78,6 +78,7 @@ class PipBoyView extends WatchUi.WatchFace {
   var activeMinutesGoal = 0;
   var caloriesBurned = 0;
   var caloriesBurnedGoal = 0;
+  var moveBarLevel = ActivityMonitor.MOVE_BAR_LEVEL_MIN;
   var steps = 0;
   var stepGoal = 0;
   var bodyBattery = 100;
@@ -85,10 +86,10 @@ class PipBoyView extends WatchUi.WatchFace {
   var heartRate = 0;
 
   // Other
-  var allVitalsValid = true;
   var aboutToSleep = false;
   var selectedTab = 1;
-
+  var newHeadingReady = false;
+  
   // =================================================================================
   // Delegate Functions
   // =================================================================================
@@ -202,9 +203,13 @@ class PipBoyView extends WatchUi.WatchFace {
     // Grab current heading if we can
     if (Toybox has :Position) {
       var info = Toybox.Position.getInfo();
-      if (info != null && info.heading != null) {
-        currentHeading = info.heading;
+      if (info != null) {
+        newHeadingReady = info.heading != null && info.heading != currentHeading;
+        if (newHeadingReady) {
+          currentHeading = info.heading;
+        }
       }
+      System.println("Current heading: " + currentHeading);
     }
 
     // Try and update our current location from whatever source we can get
@@ -243,49 +248,21 @@ class PipBoyView extends WatchUi.WatchFace {
 
   // Get the current user info
   function getCurrentActivityInfo() as Void {
-    allVitalsValid = true;
     if (Toybox has :ActivityMonitor) {
       var info = ActivityMonitor.getInfo();
       if (info != null) {
         activityInfo = info;
-        if (info.steps != null) {
-          steps = info.steps;
-        } else {
-          allVitalsValid = false;
-        }
-        if (info.stepGoal != null) {
-          stepGoal = info.stepGoal;
-        } else {
-          allVitalsValid = false;
-        }
-        if (info.calories != null) {
-          caloriesBurned = info.calories;
-        } else {
-          allVitalsValid = false;
-        }
-        if (info.activeMinutesDay != null) {
-          activeMinutes = info.activeMinutesDay.total;
-        } else {
-          allVitalsValid = false;
-        }
-        if (info.activeMinutesWeekGoal != null) {
-          activeMinutesGoal = info.activeMinutesWeekGoal;
-        } else {
-          allVitalsValid = false;
-        }
-        if (ActivityMonitor has :getHeartRateHistory) {
-          var hr = Activity.getActivityInfo().currentHeartRate;
-          if (hr != null) {
-            heartRate = hr;
-          } else {
-            allVitalsValid = false;
-          }
-        }
-      } else {
-        allVitalsValid = false;
+
+        steps = info.steps == null ? 0 : info.steps;
+        stepGoal = info.stepGoal == null ? 0 : info.stepGoal;
+        caloriesBurned = info.calories == null ? 0 : info.calories;
+        activeMinutes = info.activeMinutesDay == null ? 0 : info.activeMinutesDay.total;
+        activeMinutesGoal = info.activeMinutesWeekGoal == null ? 0 : info.activeMinutesWeekGoal;
+        moveBarLevel = info.moveBarLevel == null ? ActivityMonitor.MOVE_BAR_LEVEL_MIN : info.moveBarLevel;
+
+        var hr = Activity.getActivityInfo().currentHeartRate;
+        heartRate = hr == null ? 0 : hr;
       }
-    } else {
-      allVitalsValid = false;
     }
 
     if (Toybox has :SensorHistory) {
@@ -296,16 +273,9 @@ class PipBoyView extends WatchUi.WatchFace {
           var sample = bbIterator.next();
           if (sample != null && sample.data != null) {
             bodyBattery = sample.data.toNumber();
-          } else {
-            allVitalsValid = false;
           }
-        } else {
-          allVitalsValid = false;
         }
-      } else {
-        allVitalsValid = false;
       }
-
       // Get stress data if available
       if (Toybox.SensorHistory has :getStressHistory) {
         var stressIterator = Toybox.SensorHistory.getStressHistory({});
@@ -313,14 +283,8 @@ class PipBoyView extends WatchUi.WatchFace {
           var sample = stressIterator.next();
           if (sample != null && sample.data != null) {
             stress = sample.data.toNumber();
-          } else {
-            allVitalsValid = false;
           }
-        } else {
-          allVitalsValid = false;
         }
-      } else {
-        allVitalsValid = false;
       }
     }
   }
@@ -346,10 +310,7 @@ class PipBoyView extends WatchUi.WatchFace {
     dc.setPenWidth(2);
     dc.drawLine(0, separatorY, screenWidth, separatorY);
 
-    // Don't keep going if we don't have heading data
-    if (currentHeading == null) {
-      return;
-    }
+    var isHeadingValid = newHeadingReady && !aboutToSleep;
     
     // Convert heading from radians to degrees and normalize to 0-360
     var headingDegrees = (currentHeading * 180.0 / Math.PI).toNumber() % 360;
@@ -379,11 +340,13 @@ class PipBoyView extends WatchUi.WatchFace {
         // Check if this is a cardinal/ordinal direction
         var isCardinal = false;
         var cardinalIndex = -1;
-        for (var i = 0; i < cardinalDirs.size(); i++) {
-          if (cardinalDirs[i] == degree) {
-            isCardinal = true;
-            cardinalIndex = i;
-            break;
+        if (isHeadingValid) {
+          for (var i = 0; i < cardinalDirs.size(); i++) {
+            if (cardinalDirs[i] == degree) {
+              isCardinal = true;
+              cardinalIndex = i;
+              break;
+            }
           }
         }
         
@@ -426,7 +389,7 @@ class PipBoyView extends WatchUi.WatchFace {
     dc.fillPolygon(trianglePoints);
 
     // Draw the heading degrees text below the compass
-    var headingText = headingDegrees.format("%d") + "°";
+    var headingText = isHeadingValid ? headingDegrees.format("%d") + "°" : "NO HDG";
     var headingY = screenHeight - dc.getFontHeight(DAY_FONT) + 8; // Position below the labels
     dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
     dc.drawText(centerX + 3, headingY, DAY_FONT, headingText, 
@@ -441,6 +404,8 @@ class PipBoyView extends WatchUi.WatchFace {
     // Load the Vault Boy bitmap from resources
     var vaultBoyBitmap = WatchUi.loadResource(Rez.Drawables.vaultboy);
     
+
+
     // Get bitmap dimensions for positioning
     var bitmapWidth = vaultBoyBitmap.getWidth();
     var bitmapHeight = vaultBoyBitmap.getHeight();
@@ -481,18 +446,20 @@ class PipBoyView extends WatchUi.WatchFace {
     }
     
     // Calculate stat percentages
-    var topPercent = steps / stepGoal;
-    var topLeftPercent = activeMinutes / activeMinutesGoal;
-    var topRightPercent = bodyBattery / 100;
-    var bottomLeftPercent = stress / 100;
-    var bottomRightPercent = heartRate / 200;
+    var topPercent = bodyBattery.toFloat() / 100;
+    var topLeftPercent = steps.toFloat() / stepGoal;
+    var topRightPercent = activeMinutes.toFloat() / activeMinutesGoal;
+    var bottomLeftPercent = stress.toFloat() / 100;
+
+    var moveBarRange = ActivityMonitor.MOVE_BAR_LEVEL_MAX - ActivityMonitor.MOVE_BAR_LEVEL_MIN;
+    var bottomRightPercent = (moveBarLevel.toFloat() - ActivityMonitor.MOVE_BAR_LEVEL_MIN) / moveBarRange;
 
     // Add * to labels if the stat is maxed out
-    var topLabel = topPercent == 1.0 ? "ENERGY*" : "ENERGY";
-    var topLeftLabel = topLeftPercent == 1.0 ? "CAPS*" : "CAPS";
-    var topRightLabel = topRightPercent == 1.0 ? "XYZ*" : "XYZ";
-    var bottomLeftLabel = bottomLeftPercent == 1.0 ? "RADS*" : "RADS";
-    var bottomRightLabel = bottomRightPercent == 1.0 ? "STR*" : "STR";
+    var topLabel = "ENERGY";
+    var topLeftLabel = topLeftPercent == 1.0 ? "STPS*" : "STPS";
+    var topRightLabel = topRightPercent == 1.0 ? "ACTV*" : "ACTV";
+    var bottomLeftLabel = bottomLeftPercent == 1.0 ? "STRS!" : "STRS";
+    var bottomRightLabel = bottomRightPercent == 1.0 ? "MOVE!" : "MOVE";
 
     // Draw stat bars with positions relative to vault boy bitmap
     drawStatBar(dc, bitmapX + 10, bitmapY - 37, topLabel, topPercent, 90, false, false);
