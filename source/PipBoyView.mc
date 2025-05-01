@@ -78,6 +78,8 @@ class PipBoyView extends WatchUi.WatchFace {
   var activeMinutesGoal = 0;
   var caloriesBurned = 0;
   var caloriesBurnedGoal = 0;
+  var floorsClimbed = 0;
+  var floorsClimbedGoal = 0;
   var moveBarLevel = ActivityMonitor.MOVE_BAR_LEVEL_MIN;
   var steps = 0;
   var stepGoal = 0;
@@ -258,6 +260,8 @@ class PipBoyView extends WatchUi.WatchFace {
         caloriesBurned = info.calories == null ? 0 : info.calories;
         activeMinutes = info.activeMinutesDay == null ? 0 : info.activeMinutesDay.total;
         activeMinutesGoal = info.activeMinutesWeekGoal == null ? 0 : info.activeMinutesWeekGoal;
+        floorsClimbed = info.floorsClimbed == null ? 0 : info.floorsClimbed;
+        floorsClimbedGoal = info.floorsClimbedGoal == null ? 0 : info.floorsClimbedGoal;
         moveBarLevel = info.moveBarLevel == null ? ActivityMonitor.MOVE_BAR_LEVEL_MIN : info.moveBarLevel;
 
         var hr = Activity.getActivityInfo().currentHeartRate;
@@ -403,8 +407,6 @@ class PipBoyView extends WatchUi.WatchFace {
   function drawVaultBoy(dc as Dc) as Void {
     // Load the Vault Boy bitmap from resources
     var vaultBoyBitmap = WatchUi.loadResource(Rez.Drawables.vaultboy);
-    
-
 
     // Get bitmap dimensions for positioning
     var bitmapWidth = vaultBoyBitmap.getWidth();
@@ -439,7 +441,7 @@ class PipBoyView extends WatchUi.WatchFace {
         heartRateText,
         DAY_FONT,
         Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER,
-        0,  // Horizontal padding
+        1,  // Horizontal padding
         0,  // Vertical padding
         true // Fill background for inverted look
       );
@@ -450,16 +452,14 @@ class PipBoyView extends WatchUi.WatchFace {
     var topLeftPercent = steps.toFloat() / stepGoal;
     var topRightPercent = activeMinutes.toFloat() / activeMinutesGoal;
     var bottomLeftPercent = stress.toFloat() / 100;
-
-    var moveBarRange = ActivityMonitor.MOVE_BAR_LEVEL_MAX - ActivityMonitor.MOVE_BAR_LEVEL_MIN;
-    var bottomRightPercent = (moveBarLevel.toFloat() - ActivityMonitor.MOVE_BAR_LEVEL_MIN) / moveBarRange;
+    var bottomRightPercent = floorsClimbed.toFloat() / floorsClimbedGoal;
 
     // Add * to labels if the stat is maxed out
     var topLabel = "ENERGY";
     var topLeftLabel = topLeftPercent == 1.0 ? "STPS*" : "STPS";
     var topRightLabel = topRightPercent == 1.0 ? "ACTV*" : "ACTV";
-    var bottomLeftLabel = bottomLeftPercent == 1.0 ? "STRS!" : "STRS";
-    var bottomRightLabel = bottomRightPercent == 1.0 ? "MOVE!" : "MOVE";
+    var bottomLeftLabel = bottomLeftPercent == 1.0 ? "STSS!" : "STSS";
+    var bottomRightLabel = bottomRightPercent == 1.0 ? "FLRS*" : "FLRS";
 
     // Draw stat bars with positions relative to vault boy bitmap
     drawStatBar(dc, bitmapX + 10, bitmapY - 37, topLabel, topPercent, 90, false, false);
@@ -777,7 +777,8 @@ class PipBoyView extends WatchUi.WatchFace {
       }
       
       // Draw progress fill from right to left
-      var fillWidth = ((length - 4) * percentage).toNumber();
+      var clampedPercentage = percentage > 1.0 ? 1.0 : percentage;
+      var fillWidth = ((length - 4) * clampedPercentage).toNumber();
       if (fillWidth > 0) {
         dc.fillRectangle(barX + length - 3 - fillWidth, barY + 3, fillWidth, leftBarHeight - 3);
       }
