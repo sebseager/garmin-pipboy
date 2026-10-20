@@ -7,21 +7,17 @@ import Toybox.Weather;
 import Toybox.Activity;
 import Toybox.Position;
 
+enum ThemeColor {
+  THEME_GREEN = 0,
+  THEME_BLUE = 1,
+  THEME_AMBER = 2
+}
+
 class PipBoyView extends WatchUi.WatchFace {
 
   // =================================================================================
   // Constants
   // =================================================================================
-
-  // Colors
-  // const THEME_DARK = 0x000055;
-  // const THEME_MID = 0x003355;
-  // const THEME_BRIGHT = 0x00FFFF;
-  // const CRT_COLOR = 0x003355;
-  const THEME_DARK = 0x005500;
-  const THEME_MID = 0x00AA00;
-  const THEME_BRIGHT = 0x00FF00;
-  const CRT_COLOR = 0x00AA00;
 
   // Fonts
   const TEMP_FONT = WatchUi.loadResource(Rez.Fonts.monofonto24);
@@ -47,6 +43,12 @@ class PipBoyView extends WatchUi.WatchFace {
   // =================================================================================
   // Variables
   // =================================================================================
+
+  // Colors
+  var THEME_DARK = 0x005500;
+  var THEME_MID = 0x00AA00;
+  var THEME_BRIGHT = 0x00FF00;
+  var CRT_COLOR = 0x00AA00;
 
   // Device screen
   var screenWidth;
@@ -98,6 +100,7 @@ class PipBoyView extends WatchUi.WatchFace {
 
   function initialize() {
     WatchFace.initialize();
+    updateTheme();
     getCurrentTime();
   }
 
@@ -105,6 +108,7 @@ class PipBoyView extends WatchUi.WatchFace {
   function onLayout(dc as Dc) as Void {
     setLayout(Rez.Layouts.WatchFace(dc));
     
+    updateTheme();
     measureScreen(dc);
     getCurrentSettings();
   }
@@ -113,12 +117,14 @@ class PipBoyView extends WatchUi.WatchFace {
   // the state of this View and prepare it to be shown. This includes
   // loading resources into memory.
   function onShow() as Void {
+    updateTheme();
   }
 
   // Update the view
   function onUpdate(dc as Dc) as Void {
     // Grab per-update data
     getCurrentTime();
+    updateTheme();
     getCurrentActivityInfo();
     getCurrentPosition();
 
@@ -184,6 +190,50 @@ class PipBoyView extends WatchUi.WatchFace {
   }
 
   // =================================================================================
+  // Themes
+  // =================================================================================
+
+  // Update the theme colors based on the selected theme
+  function updateTheme() as Void {
+    var themeIndex = Application.Properties.getValue("ThemeColor");
+    themeIndex = themeIndex == null ? THEME_GREEN : themeIndex as ThemeColor;
+
+    switch (themeIndex) {
+      case THEME_GREEN:
+        // Green theme (default)
+        THEME_DARK = 0x005500;
+        THEME_MID = 0x00AA00;
+        THEME_BRIGHT = 0x00FF00;
+        CRT_COLOR = 0x00AA00;
+        break;
+        
+      case THEME_BLUE:
+        // Blue theme
+        THEME_DARK = 0x000055;
+        THEME_MID = 0x0000AA;
+        THEME_BRIGHT = 0x00AAFF;
+        CRT_COLOR = 0x0000AA;
+        break;
+        
+      case THEME_AMBER:
+        // Amber theme
+        THEME_DARK = 0x553300;
+        THEME_MID = 0xAA5500;
+        THEME_BRIGHT = 0xFFAA00;
+        CRT_COLOR = 0xAA5500;
+        break;
+        
+      default:
+        // Default to green if invalid
+        THEME_DARK = 0x005500;
+        THEME_MID = 0x00AA00;
+        THEME_BRIGHT = 0x00FF00;
+        CRT_COLOR = 0x00AA00;
+        break;
+    }
+  }
+
+  // =================================================================================
   // Data Helpers
   // =================================================================================
 
@@ -211,7 +261,6 @@ class PipBoyView extends WatchUi.WatchFace {
           currentHeading = info.heading;
         }
       }
-      System.println("Current heading: " + currentHeading);
     }
 
     // Try and update our current location from whatever source we can get
@@ -422,7 +471,7 @@ class PipBoyView extends WatchUi.WatchFace {
     
     // Draw the bitmap
     dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
-    dc.drawBitmap(bitmapX, bitmapY, vaultBoyBitmap);
+    dc.drawBitmap2(bitmapX, bitmapY, vaultBoyBitmap, {:tintColor => THEME_BRIGHT});
     
     // Calculate heart rate position relative to the bitmap
     // (centered on vault boy's chest)
