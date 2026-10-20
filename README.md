@@ -2,7 +2,9 @@
 
 A Fallout Pip-Boy style watch face for Garmin devices, written in Monkey C for Connect IQ.
 
-![Watch face running in the Connect IQ simulator](docs/preview-watch.png)
+<p align="center">
+  <img src="docs/preview-watch.png" alt="Watch face running in the Connect IQ simulator" width="250">
+</p>
 
 ## Supported devices
 
