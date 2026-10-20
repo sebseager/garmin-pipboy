@@ -1,9 +1,9 @@
 <drawables xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://developer.garmin.com/downloads/connect-iq/resources.xsd">
     <bitmap id="LauncherIcon" filename="launcher_icon.svg" dithering="none" />
-    <bitmap id="vaultboy" filename="vaultboy_body.png" packingFormat="default" dithering="none">
-        <palette>
+    <bitmap id="vaultboy" filename="vaultboy_outline.png" packingFormat="default" dithering="none">
+        <!-- <palette>
             <color>00FF00</color>
-            <!-- <color>000000</color> -->
-        </palette>
+            <color>000000</color>
+        </palette> -->
     </bitmap>
 </drawables>
