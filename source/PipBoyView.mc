@@ -68,6 +68,7 @@ class PipBoyView extends WatchUi.WatchFace {
   var hasMessages = false;
   var hasAlarms = false;
   var hasConnection = false;
+  var use24Hour = false;
 
   // Time and date
   var currentMoment;
@@ -100,15 +101,13 @@ class PipBoyView extends WatchUi.WatchFace {
 
   function initialize() {
     WatchFace.initialize();
-    updateTheme();
     getCurrentTime();
   }
 
   // Load your resources here
   function onLayout(dc as Dc) as Void {
     setLayout(Rez.Layouts.WatchFace(dc));
-    
-    updateTheme();
+
     measureScreen(dc);
     getCurrentSettings();
   }
@@ -117,7 +116,6 @@ class PipBoyView extends WatchUi.WatchFace {
   // the state of this View and prepare it to be shown. This includes
   // loading resources into memory.
   function onShow() as Void {
-    updateTheme();
   }
 
   // Update the view
@@ -125,6 +123,7 @@ class PipBoyView extends WatchUi.WatchFace {
     // Grab per-update data
     getCurrentTime();
     updateTheme();
+    updateTimeFormat();
     getCurrentActivityInfo();
     getCurrentPosition();
 
@@ -199,14 +198,6 @@ class PipBoyView extends WatchUi.WatchFace {
     themeIndex = themeIndex == null ? THEME_GREEN : themeIndex as ThemeColor;
 
     switch (themeIndex) {
-      case THEME_GREEN:
-        // Green theme (default)
-        THEME_DARK = 0x005500;
-        THEME_MID = 0x00AA00;
-        THEME_BRIGHT = 0x00FF00;
-        CRT_COLOR = 0x00AA00;
-        break;
-        
       case THEME_BLUE:
         // Blue theme
         THEME_DARK = 0x000055;
@@ -224,7 +215,7 @@ class PipBoyView extends WatchUi.WatchFace {
         break;
         
       default:
-        // Default to green if invalid
+        // Green theme (default, and fallback if invalid)
         THEME_DARK = 0x005500;
         THEME_MID = 0x00AA00;
         THEME_BRIGHT = 0x00FF00;
@@ -295,6 +286,20 @@ class PipBoyView extends WatchUi.WatchFace {
     hasMessages = currentSettings.notificationCount > 0;
     hasAlarms = currentSettings.alarmCount > 0;
     hasConnection = currentSettings.phoneConnected;
+  }
+
+  // Mirror the watch's 12/24-hour time setting
+  function updateTimeFormat() as Void {
+    use24Hour = System.getDeviceSettings().is24Hour;
+  }
+
+  // Convert a 0-23 hour to the hour shown for the current time format
+  function toDisplayHour(hour as Number) as Number {
+    if (use24Hour) {
+      return hour;
+    }
+    hour = hour % 12;
+    return hour == 0 ? 12 : hour; // Handle midnight and noon correctly
   }
 
   // Get the current user info
@@ -687,10 +692,10 @@ class PipBoyView extends WatchUi.WatchFace {
         
       if (timeToSunrise < timeToSunset) {
         // Sunrise is next
-        sunEventText = Lang.format("$1$:$2$", [sunriseHour, sunriseMinutes.format("%02d")]);
+        sunEventText = Lang.format("$1$:$2$", [toDisplayHour(sunriseHour), sunriseMinutes.format("%02d")]);
       } else {
         // Sunset is next
-        sunEventText = Lang.format("$1$:$2$", [sunsetHour, sunsetMinutes.format("%02d")]);
+        sunEventText = Lang.format("$1$:$2$", [toDisplayHour(sunsetHour), sunsetMinutes.format("%02d")]);
       }
     }
 
@@ -876,13 +881,9 @@ class PipBoyView extends WatchUi.WatchFace {
   // Draw the time and date
   function drawTime(dc as Dc) as Void {
     // Format time
-    var hour = currentTime.hour;
+    var hour = toDisplayHour(currentTime.hour);
     var min = currentTime.min;
-    var isPM = hour >= 12; // Determine AM/PM
-    if (!System.getDeviceSettings().is24Hour) {
-      hour = hour > 12 ? hour - 12 : hour;
-      hour = hour == 0 ? 12 : hour; // Handle midnight correctly
-    }
+    var isPM = currentTime.hour >= 12; // Determine AM/PM
     var hourStr = Lang.format("$1$", [hour.format("%02d")]);
     var minStr = Lang.format("$1$", [min.format("%02d")]);
     
@@ -957,11 +958,16 @@ class PipBoyView extends WatchUi.WatchFace {
     var ampmBreakTop = ampmTopY - 1;
     var ampmBreakBottom = ampmBottomY + ampmBottomDims[1] + 1;
     
-    dc.fillRectangle(boxX + boxWidth - BAR_WIDTH, boxY, BAR_WIDTH, ampmBreakTop - boxY);
-    
-    // Draw right edge with break only for AM/PM
-    dc.fillRectangle(boxX + boxWidth - BAR_WIDTH, ampmBreakBottom, 
-             BAR_WIDTH, boxBottomY - ampmBreakBottom + BAR_WIDTH);
+    if (use24Hour) {
+      // No AM/PM in 24-hour format, so draw a solid right edge
+      dc.fillRectangle(boxX + boxWidth - BAR_WIDTH, boxY, BAR_WIDTH, boxBottomY - boxY + BAR_WIDTH);
+    } else {
+      dc.fillRectangle(boxX + boxWidth - BAR_WIDTH, boxY, BAR_WIDTH, ampmBreakTop - boxY);
+
+      // Draw right edge with break only for AM/PM
+      dc.fillRectangle(boxX + boxWidth - BAR_WIDTH, ampmBreakBottom,
+               BAR_WIDTH, boxBottomY - ampmBreakBottom + BAR_WIDTH);
+    }
     
     // Bottom line with break for seconds
     if (!aboutToSleep) {
@@ -980,9 +986,11 @@ class PipBoyView extends WatchUi.WatchFace {
     dc.drawText(timeLeftX, boxY + timeHeight + TIME_YPAD + TIME_YOFF, TIME_FONT, minStr, Graphics.TEXT_JUSTIFY_LEFT);
     
     // Draw AM/PM
-    dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
-    dc.drawText(ampmX, ampmTopY, DATE_FONT, ampmTop, Graphics.TEXT_JUSTIFY_CENTER);
-    dc.drawText(ampmX, ampmBottomY, DATE_FONT, ampmBottom, Graphics.TEXT_JUSTIFY_CENTER);
+    if (!use24Hour) {
+      dc.setColor(THEME_BRIGHT, Graphics.COLOR_TRANSPARENT);
+      dc.drawText(ampmX, ampmTopY, DATE_FONT, ampmTop, Graphics.TEXT_JUSTIFY_CENTER);
+      dc.drawText(ampmX, ampmBottomY, DATE_FONT, ampmBottom, Graphics.TEXT_JUSTIFY_CENTER);
+    }
     
     // Draw alarm icon if alarms are present
     if (hasAlarms) {
